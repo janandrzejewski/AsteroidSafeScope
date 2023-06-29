@@ -3,11 +3,12 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
 import configparser
-
+from datetime import datetime, timedelta
+import requests
 
 class DataObject:
-    def __init__(self, name, begin, end):
-        self.name = name
+    def __init__(self, id, begin, end):
+        self.id = id
         self.begin = begin
         self.end = end
 
@@ -23,9 +24,9 @@ def read_config():
     return email, password, page_name
 
 
-def log_in(email, password):
+def log_in(email, password,page_name):
     driver = webdriver.Firefox()
-    driver.get("http://hebe.astro.amu.edu.pl/p_login.php")
+    driver.get(page_name)
     element = driver.find_element(By.NAME, "email")
     element.send_keys(email)
     element = driver.find_element(By.NAME, "pass")
@@ -64,9 +65,9 @@ def get_info(driver):
         cells = row.find_all("td")
 
         if len(cells) >= 8:
-            name = cells[1].find('span', id='name')
-            if name:
-                name_text = name.text
+            id = cells[1].find('span', id='id')
+            if id:
+                name_text = id.text
 
                 begin_time = cells[7].text
                 end_time = cells[8].text
@@ -80,17 +81,26 @@ def get_info(driver):
 def close_website(driver):
     driver.quit()
 
+def get_position(data_objects):
+    for object in data_objects:
+        url = 'https://ssd.jpl.nasa.gov/api/horizons.api'
+        start_time = datetime.today().strftime('%Y-%m-%d') +' ' + object.begin
+        if object.begin > object.end:
+            stop_time = (datetime.today()+timedelta(days=1)).strftime('%Y-%m-%d') +' '+ object.end
+        else:
+            stop_time = datetime.today().strftime('%Y-%m-%d') +' '+ object.end
+        url += "?format=text&COMMAND='{}'&OBJ_DATA=NO&EPHEM_TYPE=OBSERVER".format(object.id)
+        url += "&START_TIME='{}'&STOP_TIME='{}'&STEP_SIZE='1h'&QUANTITIES=1".format(start_time,stop_time)
+        print(start_time, stop_time)
+        response = requests.get(url)
+        print(response.text)
 
 def main():
     email, password, page_name = read_config()
-    driver = log_in(email, password)
+    driver = log_in(email, password,page_name)
     data_objects = get_info(driver)
     close_website(driver)
-
-    for obj in data_objects:
-        print("Name:", obj.name)
-        print("Begin:", obj.begin)
-        print("End:", obj.end)
+    get_position(data_objects)
 
 
 if __name__ == "__main__":
