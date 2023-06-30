@@ -6,6 +6,7 @@ import configparser
 from datetime import datetime, timedelta
 import requests
 import re
+from tabulate import tabulate
 
 
 class DataObject:
@@ -80,6 +81,45 @@ def close_website(driver):
     driver.quit()
 
 
+def print_data(data, object):
+    match = re.search(r"\$\$SOE.*?\$\$EOE", data.text, re.DOTALL)
+    if match:
+        fragment = match.group()
+        lines = fragment.strip().split("\n")  # Podzielenie danych na linie
+
+        table_data = []  # Dane tabeli
+
+        for line in lines:
+            line = (
+                line.strip()
+            )  # Usunięcie ewentualnych spacji na początku i końcu linii
+            parts = (
+                line.split()
+            )  # Podzielenie linii na poszczególne części (odzielone spacjami)
+
+            if len(parts) >= 8:
+                date_time = parts[0] + " " + parts[1]  # Pobranie daty i czasu
+                ra = (
+                    parts[2] + " " + parts[3] + " " + parts[4]
+                )  # Pobranie współrzędnych rektascensji (RA)
+                dec = (
+                    parts[5] + " " + parts[6] + " " + parts[7]
+                )  # Pobranie współrzędnych deklinacji (Dec)
+
+                # Dodanie wiersza do danych tabeli
+                table_data.append([object.id, date_time, ra, dec])
+
+        # Nagłówki kolumn
+        headers = ["Object ID", "Date-Time", "RA", "Dec"]
+
+        # Wyświetlenie tabeli, jeśli są dane
+        if table_data:
+            table = tabulate(table_data, headers=headers, tablefmt="grid")
+            print(table)
+        else:
+            print("Brak danych do wyświetlenia.")
+
+
 def get_position(data_objects):
     for object in data_objects:
         url = "https://ssd.jpl.nasa.gov/api/horizons.api"
@@ -99,11 +139,7 @@ def get_position(data_objects):
             start_time, stop_time
         )
         response = requests.get(url)
-        match = re.search(r"\$\$SOE.*?\$\$EOE", response.text, re.DOTALL)
-        if match:
-            fragment = match.group()
-            print(object.id)
-            print(fragment)
+        print_data(response, object)
 
 
 def main():
