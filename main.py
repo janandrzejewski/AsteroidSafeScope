@@ -7,6 +7,15 @@ from datetime import datetime, timedelta
 import requests
 import re
 from tabulate import tabulate
+import astropy.units as u
+from astropy.coordinates import SkyCoord
+from astroquery.gaia import Gaia
+import logging
+
+# Logging configuration
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
 
 class DataObject:
@@ -81,43 +90,59 @@ def close_website(driver):
     driver.quit()
 
 
+def collision(data, radius=10):
+    collided_stars = set()
+    for positon in data:
+        coord = SkyCoord(ra=positon[2], dec=positon[3], unit=(u.hourangle, u.deg))
+        j = Gaia.cone_search_async(coord, radius * u.arcsec)
+        result = j.get_results()
+
+        if len(result) > 0:
+            for star in result:
+                star_id = star["source_id"]
+                if star_id not in collided_stars:
+                    collided_stars.add(star_id)
+
+    table = []
+    for star_id in collided_stars:
+        table.append([star_id])
+    if table:
+        print("Znalezione gwiazdy to:")
+        return tabulate(table, headers=["Star ID"], tablefmt="grid")
+    else:
+        return "Nie znaleziono zadnych gwiazd w kolizji"
+
+
 def print_data(data, object):
     match = re.search(r"\$\$SOE.*?\$\$EOE", data.text, re.DOTALL)
     if match:
         fragment = match.group()
-        lines = fragment.strip().split("\n")  # Podzielenie danych na linie
+        lines = fragment.strip().split("\n")
 
-        table_data = []  # Dane tabeli
+        table_data = []
 
         for line in lines:
-            line = (
-                line.strip()
-            )  # Usunięcie ewentualnych spacji na początku i końcu linii
-            parts = (
-                line.split()
-            )  # Podzielenie linii na poszczególne części (odzielone spacjami)
+            line = line.strip()
+            parts = line.split()
 
             if len(parts) >= 8:
-                date_time = parts[0] + " " + parts[1]  # Pobranie daty i czasu
-                ra = (
-                    parts[2] + " " + parts[3] + " " + parts[4]
-                )  # Pobranie współrzędnych rektascensji (RA)
-                dec = (
-                    parts[5] + " " + parts[6] + " " + parts[7]
-                )  # Pobranie współrzędnych deklinacji (Dec)
+                date_time = parts[0] + " " + parts[1]
+                ra = parts[2] + " " + parts[3] + " " + parts[4]
+                dec = parts[5] + " " + parts[6] + " " + parts[7]
 
-                # Dodanie wiersza do danych tabeli
                 table_data.append([object.id, date_time, ra, dec])
 
-        # Nagłówki kolumn
         headers = ["Object ID", "Date-Time", "RA", "Dec"]
 
-        # Wyświetlenie tabeli, jeśli są dane
         if table_data:
             table = tabulate(table_data, headers=headers, tablefmt="grid")
             print(table)
+            print(collision(table_data, 5))
+
+            return table_data
         else:
-            print("Brak danych do wyświetlenia.")
+            logging.info("No data to display.")
+            return []
 
 
 def get_position(data_objects):
@@ -135,7 +160,7 @@ def get_position(data_objects):
         url += "?format=text&COMMAND='{}'&OBJ_DATA=NO&EPHEM_TYPE=OBSERVER".format(
             object.id
         )
-        url += "&START_TIME='{}'&STOP_TIME='{}'&STEP_SIZE='1m'&QUANTITIES='1'".format(
+        url += "&START_TIME='{}'&STOP_TIME='{}'&STEP_SIZE='1h'&QUANTITIES='1'".format(
             start_time, stop_time
         )
         response = requests.get(url)
