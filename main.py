@@ -1,4 +1,6 @@
 from selenium import webdriver
+import matplotlib.pyplot as plt
+from matplotlib.patches import Circle
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from bs4 import BeautifulSoup
@@ -12,12 +14,17 @@ from astropy.coordinates import SkyCoord
 from astroquery.gaia import Gaia
 import logging
 import time
+import numpy as np
 
+#determines the size of the radius
+RADIUS_FACTOR = 1.05
+
+
+d = 0.00138888889
 # Logging configuration
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
-
 
 def timeit(func):
     def timed(*args, **kwargs):
@@ -26,16 +33,20 @@ def timeit(func):
         te = time.time()
         logging.info(f"Function: {func.__name__} time: {round((te -ts)*1000,1)} ms)")
         return result
-
     return timed
 
 
+
 class DataObject:
-    def __init__(self, id, begin, end):
-        self.id = id
+    def __init__(self, _id, begin, end):
+        self._id = _id
         self.begin = begin
         self.end = end
 
+
+
+def f(a,b,x):
+    return a * x + b
 
 @timeit
 def read_config():
@@ -51,7 +62,6 @@ def read_config():
     except FileNotFoundError:
         logging.exception("Nie ma pliku config o nazwie config.ini")
     return email, password, page_name
-
 
 @timeit
 def log_in(email, password, page_name):
@@ -78,44 +88,38 @@ def log_in(email, password, page_name):
 
     return driver
 
-
 @timeit
-def get_data_objects(driver):
+def get_asteroids_list(driver):
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table")
     rows = table.find_all("tr")
 
-    data_objects = []
+    asteroids_list = []
 
     for row in rows:
         cells = row.find_all("td")
 
         if len(cells) >= 8:
-            id = cells[1].find("span", id="id")
-            if id:
-                name_text = id.text
+            asteroid_id = cells[1].find("span", id="id")
+            start_time = cells[7].text
+            stop_time = cells[8].text
 
-                begin_time = cells[7].text
-                end_time = cells[8].text
+            asteroid = DataObject(asteroid_id.text, start_time, stop_time)
+            asteroids_list.append(asteroid)
 
-                data_object = DataObject(name_text, begin_time, end_time)
-                data_objects.append(data_object)
-
-    return data_objects
-
+    return asteroids_list
 
 @timeit
 def close_website(driver):
     driver.quit()
 
-
 @timeit
-def get_collided_stars(data, radius=5):
-    if data:
+def get_collided_stars(asteroid_positions, radius=5):
+    if asteroid_positions:
         collided_stars = set()
-        for positon in data:
-            coord = SkyCoord(ra=positon[2], dec=positon[3], unit=(u.hourangle, u.deg))
+        for position in asteroid_positions:
+            coord = SkyCoord(ra=position[2], dec=position[3], unit=(u.hourangle, u.deg))
             j = Gaia.cone_search(coord, radius * u.arcsec)
             result = j.get_results()
 
@@ -131,15 +135,43 @@ def get_collided_stars(data, radius=5):
         return stars_nearby_data
     else:
         return []
+        
 
 
 @timeit
-def separate_data(data, object):
-    match = re.search(r"\$\$SOE.*?\$\$EOE", data.text, re.DOTALL)
+def get_cartesian_positions(asteroid_positions):
+    arr = asteroid_positions
+    asteroid_cartesian_positions = SkyCoord(arr[:,2], arr[:,3], unit=(u.hourangle, u.deg))
+    x = asteroid_cartesian_positions.ra.deg
+    y = asteroid_cartesian_positions.dec.deg
+    x_mean = np.mean(x)
+    y_mean = np.mean(y)
+    return x,y,x_mean,y_mean
+
+
+@timeit
+def get_linear_f(x,y,x_mean,y_mean):
+    delta_x = x - x_mean
+    delta_y = y - y_mean
+
+    a = np.sum(delta_x * delta_y) / np.sum(delta_x**2)
+    b = y_mean - a * x_mean
+    return a,b
+
+def get_radius(x,y,x_mean,y_mean):
+    radius = (np.sqrt((x[0] - x_mean)**2 + (y[0] - y_mean)**2)) * RADIUS_FACTOR
+    logging.info(f"radius = {radius}")
+    return radius
+
+
+
+@timeit
+def separate_data(api_response, asteroid):
+    match = re.search(r"\$\$SOE.*?\$\$EOE", api_response.text, re.DOTALL)
     if match:
         fragment = match.group()
         lines = fragment.strip().split("\n")
-        table_data = []
+        asteroid_positions = []
 
         for line in lines:
             line = line.strip()
@@ -149,58 +181,111 @@ def separate_data(data, object):
                 ra = parts[2] + " " + parts[3] + " " + parts[4]
                 dec = parts[5] + " " + parts[6] + " " + parts[7]
 
-                table_data.append([object.id, date_time, ra, dec])
-        return table_data
+                asteroid_positions.append([asteroid._id, date_time, ra, dec])
+        return np.array(asteroid_positions)
     else:
         logging.exception("No ephemeris for target")
         return []
-
-
 @timeit
 def start_session():
     return requests.Session()
 
 
+def create_plt():
+    ax = plt.subplots()
+    return ax
+
+def draw_f(ax,a,b,x):
+    ax.plot(x, f(a,b,x), color='red')
+    return ax
+
+def draw_circle(ax,radius,x_mean,y_mean):
+    center = (x_mean, y_mean)
+    circle = Circle(center,radius,edgecolor='black',facecolor='none')
+    ax.add_patch(circle)
+    xmin = center[0] - radius - 1
+    xmax = center[0] + radius + 1
+    ymin = center[1] - radius - 1
+    ymax = center[1] + radius + 1
+    ax.set_xlim(xmin, xmax)
+    ax.set_ylim(ymin,ymax)
+    return ax
+
+
+def get_stars_in_radius(radius,x_mean,y_mean):
+    coord = SkyCoord(ra=x_mean, dec=y_mean, unit=(u.deg, u.deg))
+    j = Gaia.cone_search(coord, radius * u.deg)
+    result = j.get_results()
+    return result
+
+
+
+def get_stars_in_d(ax,d,stars_in_radius,a,b,x,y):
+    x = stars_in_radius["ra"]
+    y = stars_in_radius["dec"]
+    stars_in_radius["d"] = abs((a * x + -1 * y + b)/np.sqrt(a**2 + 1))
+    stars_in_radius = stars_in_radius[stars_in_radius["d"] < d]
+    return stars_in_radius
+
+def draw_stars(ax,stars_in_d,x,y):
+    ax.plot(stars_in_d["ra"],stars_in_d["dec"],marker= "*",ls='none',ms=2)
+    logging.info(f'\n{stars_in_d["d"]}')
+    for i, mag in enumerate(stars_in_d["phot_g_mean_mag"]):
+        if mag > 18: continue
+        ax.annotate(round(mag,2), (x[i], y[i]))
+    ax.invert_xaxis()
+    return ax
+
+def temp(asteroid_positions,asteroid):
+    x,y,x_mean,y_mean = get_cartesian_positions(asteroid_positions)
+    a,b = get_linear_f(x,y,x_mean,y_mean) 
+    radius  = get_radius(x,y,x_mean,y_mean)
+    fig, ax = plt.subplots()
+    ax = draw_f(ax,a,b,x)
+    ax = draw_circle(ax,radius,x_mean,y_mean)
+    stars_in_radius = get_stars_in_radius(radius,x_mean,y_mean)
+    stars_in_d = get_stars_in_d(ax,d,stars_in_radius,a,b,x,y)
+    ax = draw_stars(ax,stars_in_d,x,y)
+    plt.axis('equal')
+    plt.grid(True)
+    plt.savefig(f'{asteroid._id}')
+    plt.close()
+
 @timeit
-def parse_horizons_response(obj_position_data, stars_nearby_data):
-    obj_position_headers = ["Object ID", "Date-Time", "RA", "Dec"]
-    obj_position_table = tabulate(
-        obj_position_data, headers=obj_position_headers, tablefmt="grid"
+def parse_horizons_response(asteroid_positons, stars_nearby_id):
+    asteroid_table_headers = ["Object ID", "Date-Time", "RA", "Dec"]
+    asteroid_table = tabulate(
+        asteroid_positons, headers=asteroid_table_headers, tablefmt="grid"
     )
     stars_nearby_table = tabulate(
-        stars_nearby_data, headers=["Star ID"], tablefmt="grid"
+        stars_nearby_id, headers=["Star ID"], tablefmt="grid"
     )
-    logging.info("\n" + obj_position_table + "\n" + stars_nearby_table)
-
+    logging.info('\n' + asteroid_table +'\n'+ stars_nearby_table)
 
 @timeit
-def get_position(object, session):
+def get_position(asteroid, session):
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
-    start_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + object.begin + "'"
-    if object.begin > object.end:
+    start_time = "'" +  datetime.today().strftime("%Y-%m-%d") + " " + asteroid.begin + "'"
+    if asteroid.begin > asteroid.end:
         stop_time = (
-            "'"
-            + (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+            "'"+ (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
             + " "
-            + object.end
+            + asteroid.end
             + "'"
         )
     else:
-        stop_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + object.end + "'"
+        stop_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + asteroid.end + "'"
 
-    response = session.get(
-        url,
-        params={
-            "format": "text",
-            "COMMAND": object.id,
-            "OBJ_DATA": "NO",
-            "EPHEM_TYPE": "OBSERVER",
-            "START_TIME": start_time,
-            "STOP_TIME": stop_time,
-            "STEP_SIZE": "1h",
-            "QUANTITIES": "1",
-        },
-    )
+    response = session.get(url,params={
+        "format":"text",
+        "COMMAND":asteroid._id,
+        "OBJ_DATA":"NO",
+        "EPHEM_TYPE":"OBSERVER",
+        "START_TIME":start_time,
+        "STOP_TIME":stop_time,
+        "STEP_SIZE":"1m",
+        "QUANTITIES":"1"
+        })
     if response.status_code != 200:
         logging.exception("Horizons API error")
     return response
@@ -209,14 +294,16 @@ def get_position(object, session):
 def main():
     email, password, page_name = read_config()
     driver = log_in(email, password, page_name)
-    object_list = get_data_objects(driver)
+    asteroids_list = get_asteroids_list(driver)
     close_website(driver)
     session = start_session()
-    for object in object_list:
-        obj_position = get_position(object, session)
-        obj_position_data = separate_data(obj_position, object)
-        stars_nearby_data = get_collided_stars(obj_position_data)
-        parse_horizons_response(obj_position_data, stars_nearby_data)
+    for asteroid in asteroids_list:
+        api_response = get_position(asteroid, session)
+        asteroid_positions = separate_data(api_response, asteroid)
+        if len(asteroid_positions) > 0:
+            temp(asteroid_positions,asteroid)
+        #stars_nearby_id = get_collided_stars(asteroid_positions)
+        #parse_horizons_response(asteroid_positions, stars_nearby_id)
 
 
 if __name__ == "__main__":
