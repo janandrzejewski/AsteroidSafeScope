@@ -18,6 +18,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 def timeit(func):
     def timed(*args, **kwargs):
         ts = time.time()
@@ -25,8 +26,8 @@ def timeit(func):
         te = time.time()
         logging.info(f"Function: {func.__name__} time: {round((te -ts)*1000,1)} ms)")
         return result
-    return timed
 
+    return timed
 
 
 class DataObject:
@@ -34,6 +35,7 @@ class DataObject:
         self.id = id
         self.begin = begin
         self.end = end
+
 
 @timeit
 def read_config():
@@ -49,6 +51,7 @@ def read_config():
     except FileNotFoundError:
         logging.exception("Nie ma pliku config o nazwie config.ini")
     return email, password, page_name
+
 
 @timeit
 def log_in(email, password, page_name):
@@ -75,6 +78,7 @@ def log_in(email, password, page_name):
 
     return driver
 
+
 @timeit
 def get_data_objects(driver):
     html = driver.page_source
@@ -100,9 +104,11 @@ def get_data_objects(driver):
 
     return data_objects
 
+
 @timeit
 def close_website(driver):
     driver.quit()
+
 
 @timeit
 def get_collided_stars(data, radius=5):
@@ -125,7 +131,7 @@ def get_collided_stars(data, radius=5):
         return stars_nearby_data
     else:
         return []
-        
+
 
 @timeit
 def separate_data(data, object):
@@ -148,9 +154,12 @@ def separate_data(data, object):
     else:
         logging.exception("No ephemeris for target")
         return []
+
+
 @timeit
 def start_session():
     return requests.Session()
+
 
 @timeit
 def parse_horizons_response(obj_position_data, stars_nearby_data):
@@ -161,15 +170,17 @@ def parse_horizons_response(obj_position_data, stars_nearby_data):
     stars_nearby_table = tabulate(
         stars_nearby_data, headers=["Star ID"], tablefmt="grid"
     )
-    logging.info('\n' + obj_position_table +'\n'+ stars_nearby_table)
+    logging.info("\n" + obj_position_table + "\n" + stars_nearby_table)
+
 
 @timeit
 def get_position(object, session):
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
-    start_time = "'" +  datetime.today().strftime("%Y-%m-%d") + " " + object.begin + "'"
+    start_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + object.begin + "'"
     if object.begin > object.end:
         stop_time = (
-            "'"+ (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+            "'"
+            + (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
             + " "
             + object.end
             + "'"
@@ -177,16 +188,19 @@ def get_position(object, session):
     else:
         stop_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + object.end + "'"
 
-    response = session.get(url,params={
-        "format":"text",
-        "COMMAND":object.id,
-        "OBJ_DATA":"NO",
-        "EPHEM_TYPE":"OBSERVER",
-        "START_TIME":start_time,
-        "STOP_TIME":stop_time,
-        "STEP_SIZE":"1h",
-        "QUANTITIES":"1"
-        })
+    response = session.get(
+        url,
+        params={
+            "format": "text",
+            "COMMAND": object.id,
+            "OBJ_DATA": "NO",
+            "EPHEM_TYPE": "OBSERVER",
+            "START_TIME": start_time,
+            "STOP_TIME": stop_time,
+            "STEP_SIZE": "1h",
+            "QUANTITIES": "1",
+        },
+    )
     if response.status_code != 200:
         logging.exception("Horizons API error")
     return response
