@@ -11,12 +11,22 @@ import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astroquery.gaia import Gaia
 import logging
-
+import time
 
 # Logging configuration
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
+
+def timeit(func):
+    def timed(*args, **kwargs):
+        ts = time.time()
+        result = func(*args, **kwargs)
+        te = time.time()
+        logging.info(f"Function: {func.__name__} time: {round((te -ts)*1000,1)} ms)")
+        return result
+    return timed
+
 
 
 class DataObject:
@@ -25,7 +35,7 @@ class DataObject:
         self.begin = begin
         self.end = end
 
-
+@timeit
 def read_config():
     config_path = "config.ini"
     try:
@@ -40,7 +50,7 @@ def read_config():
         logging.exception("Nie ma pliku config o nazwie config.ini")
     return email, password, page_name
 
-
+@timeit
 def log_in(email, password, page_name):
     driver = webdriver.Firefox()
     driver.get(page_name)
@@ -65,7 +75,7 @@ def log_in(email, password, page_name):
 
     return driver
 
-
+@timeit
 def get_data_objects(driver):
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
@@ -90,30 +100,34 @@ def get_data_objects(driver):
 
     return data_objects
 
-
+@timeit
 def close_website(driver):
     driver.quit()
 
-
+@timeit
 def get_collided_stars(data, radius=5):
-    collided_stars = set()
-    for positon in data:
-        coord = SkyCoord(ra=positon[2], dec=positon[3], unit=(u.hourangle, u.deg))
-        j = Gaia.cone_search(coord, radius * u.arcsec)
-        result = j.get_results()
+    if data:
+        collided_stars = set()
+        for positon in data:
+            coord = SkyCoord(ra=positon[2], dec=positon[3], unit=(u.hourangle, u.deg))
+            j = Gaia.cone_search(coord, radius * u.arcsec)
+            result = j.get_results()
 
-        if len(result) > 0:
-            for star in result:
-                star_id = star["DESIGNATION"]
-                if star_id not in collided_stars:
-                    collided_stars.add(star_id)
+            if len(result) > 0:
+                for star in result:
+                    star_id = star["DESIGNATION"]
+                    if star_id not in collided_stars:
+                        collided_stars.add(star_id)
 
-    stars_nearby_data = []
-    for star_id in collided_stars:
-        stars_nearby_data.append([star_id])
-    return stars_nearby_data
+        stars_nearby_data = []
+        for star_id in collided_stars:
+            stars_nearby_data.append([star_id])
+        return stars_nearby_data
+    else:
+        return []
+        
 
-
+@timeit
 def separate_data(data, object):
     match = re.search(r"\$\$SOE.*?\$\$EOE", data.text, re.DOTALL)
     if match:
@@ -131,9 +145,15 @@ def separate_data(data, object):
 
                 table_data.append([object.id, date_time, ra, dec])
         return table_data
+    else:
+        logging.exception("No ephemeris for target")
+        return []
+@timeit
+def start_session():
+    return requests.Session()
 
-
-def print_data(obj_position_data, stars_nearby_data):
+@timeit
+def parse_horizons_response(obj_position_data, stars_nearby_data):
     obj_position_headers = ["Object ID", "Date-Time", "RA", "Dec"]
     obj_position_table = tabulate(
         obj_position_data, headers=obj_position_headers, tablefmt="grid"
@@ -143,23 +163,32 @@ def print_data(obj_position_data, stars_nearby_data):
     )
     logging.info('\n' + obj_position_table +'\n'+ stars_nearby_table)
 
-
-def get_position(object):
+@timeit
+def get_position(object, session):
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
-    start_time = datetime.today().strftime("%Y-%m-%d") + " " + object.begin
+    start_time = "'" +  datetime.today().strftime("%Y-%m-%d") + " " + object.begin + "'"
     if object.begin > object.end:
         stop_time = (
-            (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+            "'"+ (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
             + " "
             + object.end
+            + "'"
         )
     else:
-        stop_time = datetime.today().strftime("%Y-%m-%d") + " " + object.end
-    url += "?format=text&COMMAND='{}'&OBJ_DATA=NO&EPHEM_TYPE=OBSERVER".format(object.id)
-    url += "&START_TIME='{}'&STOP_TIME='{}'&STEP_SIZE='1h'&QUANTITIES='1'".format(
-        start_time, stop_time
-    )
-    response = requests.get(url)
+        stop_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + object.end + "'"
+
+    response = session.get(url,params={
+        "format":"text",
+        "COMMAND":object.id,
+        "OBJ_DATA":"NO",
+        "EPHEM_TYPE":"OBSERVER",
+        "START_TIME":start_time,
+        "STOP_TIME":stop_time,
+        "STEP_SIZE":"1h",
+        "QUANTITIES":"1"
+        })
+    if response.status_code != 200:
+        logging.exception("Horizons API error")
     return response
 
 
@@ -168,11 +197,12 @@ def main():
     driver = log_in(email, password, page_name)
     object_list = get_data_objects(driver)
     close_website(driver)
+    session = start_session()
     for object in object_list:
-        obj_position = get_position(object)
+        obj_position = get_position(object, session)
         obj_position_data = separate_data(obj_position, object)
         stars_nearby_data = get_collided_stars(obj_position_data)
-        print_data(obj_position_data, stars_nearby_data)
+        parse_horizons_response(obj_position_data, stars_nearby_data)
 
 
 if __name__ == "__main__":
