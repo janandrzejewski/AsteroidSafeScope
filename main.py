@@ -12,6 +12,7 @@ from astropy.coordinates import SkyCoord
 from astroquery.gaia import Gaia
 import logging
 
+
 # Logging configuration
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
@@ -26,13 +27,17 @@ class DataObject:
 
 
 def read_config():
-    config = configparser.ConfigParser()
-    config.read("config.ini")
+    config_path = "config.ini"
+    try:
+        config = configparser.ConfigParser()
+        config.read(config_path)
 
-    email = config.get("Credentials", "email")
-    password = config.get("Credentials", "password")
-    page_name = config.get("Page", "name")
+        email = config.get("Credentials", "email")
+        password = config.get("Credentials", "password")
+        page_name = config.get("Page", "name")
 
+    except FileNotFoundError:
+        logging.exception("Nie ma pliku config o nazwie config.ini")
     return email, password, page_name
 
 
@@ -61,7 +66,7 @@ def log_in(email, password, page_name):
     return driver
 
 
-def get_info(driver):
+def get_data_objects(driver):
     html = driver.page_source
     soup = BeautifulSoup(html, "html.parser")
     table = soup.find("table")
@@ -90,89 +95,84 @@ def close_website(driver):
     driver.quit()
 
 
-def collision(data, radius=10):
+def get_collided_stars(data, radius=5):
     collided_stars = set()
     for positon in data:
         coord = SkyCoord(ra=positon[2], dec=positon[3], unit=(u.hourangle, u.deg))
-        j = Gaia.cone_search_async(coord, radius * u.arcsec)
+        j = Gaia.cone_search(coord, radius * u.arcsec)
         result = j.get_results()
 
         if len(result) > 0:
             for star in result:
-                star_id = star["source_id"]
+                star_id = star["DESIGNATION"]
                 if star_id not in collided_stars:
                     collided_stars.add(star_id)
 
-    table = []
+    stars_nearby_data = []
     for star_id in collided_stars:
-        table.append([star_id])
-    if table:
-        print("Znalezione gwiazdy to:")
-        return tabulate(table, headers=["Star ID"], tablefmt="grid")
-    else:
-        return "Nie znaleziono zadnych gwiazd w kolizji"
+        stars_nearby_data.append([star_id])
+    return stars_nearby_data
 
 
-def print_data(data, object):
+def separate_data(data, object):
     match = re.search(r"\$\$SOE.*?\$\$EOE", data.text, re.DOTALL)
     if match:
         fragment = match.group()
         lines = fragment.strip().split("\n")
-
         table_data = []
 
         for line in lines:
             line = line.strip()
             parts = line.split()
-
-            if len(parts) >= 8:
+            if len(parts) >= 2:
                 date_time = parts[0] + " " + parts[1]
                 ra = parts[2] + " " + parts[3] + " " + parts[4]
                 dec = parts[5] + " " + parts[6] + " " + parts[7]
 
                 table_data.append([object.id, date_time, ra, dec])
-
-        headers = ["Object ID", "Date-Time", "RA", "Dec"]
-
-        if table_data:
-            table = tabulate(table_data, headers=headers, tablefmt="grid")
-            print(table)
-            print(collision(table_data, 5))
-
-            return table_data
-        else:
-            logging.info("No data to display.")
-            return []
+        return table_data
 
 
-def get_position(data_objects):
-    for object in data_objects:
-        url = "https://ssd.jpl.nasa.gov/api/horizons.api"
-        start_time = datetime.today().strftime("%Y-%m-%d") + " " + object.begin
-        if object.begin > object.end:
-            stop_time = (
-                (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
-                + " "
-                + object.end
-            )
-        else:
-            stop_time = datetime.today().strftime("%Y-%m-%d") + " " + object.end
-        url += "?format=text&COMMAND='{}'&OBJ_DATA=NO&EPHEM_TYPE=OBSERVER".format(
-            object.id
+def print_data(obj_position_data, stars_nearby_data):
+    obj_position_headers = ["Object ID", "Date-Time", "RA", "Dec"]
+    obj_position_table = tabulate(
+        obj_position_data, headers=obj_position_headers, tablefmt="grid"
+    )
+    stars_nearby_table = tabulate(
+        stars_nearby_data, headers=["Star ID"], tablefmt="grid"
+    )
+    logging.info('\n' + obj_position_table +'\n'+ stars_nearby_table)
+
+
+def get_position(object):
+    url = "https://ssd.jpl.nasa.gov/api/horizons.api"
+    start_time = datetime.today().strftime("%Y-%m-%d") + " " + object.begin
+    if object.begin > object.end:
+        stop_time = (
+            (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+            + " "
+            + object.end
         )
-        url += "&START_TIME='{}'&STOP_TIME='{}'&STEP_SIZE='1h'&QUANTITIES='1'".format(
-            start_time, stop_time
-        )
-        response = requests.get(url)
-        print_data(response, object)
+    else:
+        stop_time = datetime.today().strftime("%Y-%m-%d") + " " + object.end
+    url += "?format=text&COMMAND='{}'&OBJ_DATA=NO&EPHEM_TYPE=OBSERVER".format(object.id)
+    url += "&START_TIME='{}'&STOP_TIME='{}'&STEP_SIZE='1h'&QUANTITIES='1'".format(
+        start_time, stop_time
+    )
+    response = requests.get(url)
+    return response
 
 
 def main():
     email, password, page_name = read_config()
     driver = log_in(email, password, page_name)
-    data_objects = get_info(driver)
+    object_list = get_data_objects(driver)
     close_website(driver)
-    get_position(data_objects)
+    for object in object_list:
+        obj_position = get_position(object)
+        obj_position_data = separate_data(obj_position, object)
+        stars_nearby_data = get_collided_stars(obj_position_data)
+        print_data(obj_position_data, stars_nearby_data)
 
 
 if __name__ == "__main__":
