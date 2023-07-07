@@ -16,7 +16,7 @@ import logging
 import time
 import numpy as np
 
-#determines the size of the radius
+# determines the size of the radius
 RADIUS_FACTOR = 1.05
 
 
@@ -26,6 +26,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
+
 def timeit(func):
     def timed(*args, **kwargs):
         ts = time.time()
@@ -33,8 +34,8 @@ def timeit(func):
         te = time.time()
         logging.info(f"Function: {func.__name__} time: {round((te -ts)*1000,1)} ms)")
         return result
-    return timed
 
+    return timed
 
 
 class DataObject:
@@ -44,9 +45,9 @@ class DataObject:
         self.end = end
 
 
-
-def f(a,b,x):
+def f(a, b, x):
     return a * x + b
+
 
 @timeit
 def read_config():
@@ -62,6 +63,7 @@ def read_config():
     except FileNotFoundError:
         logging.exception("Nie ma pliku config o nazwie config.ini")
     return email, password, page_name
+
 
 @timeit
 def log_in(email, password, page_name):
@@ -88,6 +90,7 @@ def log_in(email, password, page_name):
 
     return driver
 
+
 @timeit
 def get_asteroids_list(driver):
     html = driver.page_source
@@ -110,9 +113,11 @@ def get_asteroids_list(driver):
 
     return asteroids_list
 
+
 @timeit
 def close_website(driver):
     driver.quit()
+
 
 @timeit
 def get_collided_stars(asteroid_positions, radius=5):
@@ -135,34 +140,35 @@ def get_collided_stars(asteroid_positions, radius=5):
         return stars_nearby_data
     else:
         return []
-        
 
 
 @timeit
 def get_cartesian_positions(asteroid_positions):
     arr = asteroid_positions
-    asteroid_cartesian_positions = SkyCoord(arr[:,2], arr[:,3], unit=(u.hourangle, u.deg))
+    asteroid_cartesian_positions = SkyCoord(
+        arr[:, 2], arr[:, 3], unit=(u.hourangle, u.deg)
+    )
     x = asteroid_cartesian_positions.ra.deg
     y = asteroid_cartesian_positions.dec.deg
     x_mean = np.mean(x)
     y_mean = np.mean(y)
-    return x,y,x_mean,y_mean
+    return x, y, x_mean, y_mean
 
 
 @timeit
-def get_linear_f(x,y,x_mean,y_mean):
+def get_linear_f(x, y, x_mean, y_mean):
     delta_x = x - x_mean
     delta_y = y - y_mean
 
     a = np.sum(delta_x * delta_y) / np.sum(delta_x**2)
     b = y_mean - a * x_mean
-    return a,b
+    return a, b
 
-def get_radius(x,y,x_mean,y_mean):
-    radius = (np.sqrt((x[0] - x_mean)**2 + (y[0] - y_mean)**2)) * RADIUS_FACTOR
+
+def get_radius(x, y, x_mean, y_mean):
+    radius = (np.sqrt((x[0] - x_mean) ** 2 + (y[0] - y_mean) ** 2)) * RADIUS_FACTOR
     logging.info(f"radius = {radius}")
     return radius
-
 
 
 @timeit
@@ -186,6 +192,8 @@ def separate_data(api_response, asteroid):
     else:
         logging.exception("No ephemeris for target")
         return []
+
+
 @timeit
 def start_session():
     return requests.Session()
@@ -195,61 +203,72 @@ def create_plt():
     ax = plt.subplots()
     return ax
 
-def draw_f(ax,a,b,x):
-    ax.plot(x, f(a,b,x), color='red')
+
+def draw_f(ax, a, b, x):
+    ax.plot(x, f(a, b, x), color="red")
     return ax
 
-def draw_circle(ax,radius,x_mean,y_mean):
+
+def draw_circle(ax, radius, x_mean, y_mean):
     center = (x_mean, y_mean)
-    circle = Circle(center,radius,edgecolor='black',facecolor='none')
+    circle = Circle(center, radius, edgecolor="black", facecolor="none")
     ax.add_patch(circle)
     xmin = center[0] - radius - 1
     xmax = center[0] + radius + 1
     ymin = center[1] - radius - 1
     ymax = center[1] + radius + 1
     ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin,ymax)
+    ax.set_ylim(ymin, ymax)
     return ax
 
 
-def get_stars_in_radius(radius,x_mean,y_mean):
+def get_stars_in_radius(radius, x_mean, y_mean):
+    Gaia.ROW_LIMIT = 2000
     coord = SkyCoord(ra=x_mean, dec=y_mean, unit=(u.deg, u.deg))
     j = Gaia.cone_search(coord, radius * u.deg)
     result = j.get_results()
     return result
 
 
+def get_stars_in_d(ax, d, stars, a, b):
+    x = stars["ra"]
+    y = stars["dec"]
+    stars["d"] = abs((a * x + -1 * y + b) / np.sqrt(a**2 + 1))
+    stars = stars[stars["d"] < d]
+    return stars
 
-def get_stars_in_d(ax,d,stars_in_radius,a,b,x,y):
-    x = stars_in_radius["ra"]
-    y = stars_in_radius["dec"]
-    stars_in_radius["d"] = abs((a * x + -1 * y + b)/np.sqrt(a**2 + 1))
-    stars_in_radius = stars_in_radius[stars_in_radius["d"] < d]
-    return stars_in_radius
 
-def draw_stars(ax,stars_in_d,x,y):
-    ax.plot(stars_in_d["ra"],stars_in_d["dec"],marker= "*",ls='none',ms=2)
-    logging.info(f'\n{stars_in_d["d"]}')
-    for i, mag in enumerate(stars_in_d["phot_g_mean_mag"]):
-        if mag > 18: continue
-        ax.annotate(round(mag,2), (x[i], y[i]))
+def draw_stars(ax, stars, size):
+    ax.plot(stars["ra"], stars["dec"], marker="*", ls="none", ms=size)
+    logging.info(f'\n{stars["d"]}')
+    for i, mag in enumerate(stars["phot_g_mean_mag"]):
+        if mag > 18:
+            continue
+        ax.annotate(round(mag, 2), (stars["ra"][i], stars["dec"][i]))
     ax.invert_xaxis()
     return ax
 
-def temp(asteroid_positions,asteroid):
-    x,y,x_mean,y_mean = get_cartesian_positions(asteroid_positions)
-    a,b = get_linear_f(x,y,x_mean,y_mean) 
-    radius  = get_radius(x,y,x_mean,y_mean)
+
+def plot(asteroid_positions, asteroid):
+    x, y, x_mean, y_mean = get_cartesian_positions(asteroid_positions)
+    a, b = get_linear_f(x, y, x_mean, y_mean)
+    radius = get_radius(x, y, x_mean, y_mean)
     fig, ax = plt.subplots()
-    ax = draw_f(ax,a,b,x)
-    ax = draw_circle(ax,radius,x_mean,y_mean)
-    stars_in_radius = get_stars_in_radius(radius,x_mean,y_mean)
-    stars_in_d = get_stars_in_d(ax,d,stars_in_radius,a,b,x,y)
-    ax = draw_stars(ax,stars_in_d,x,y)
-    plt.axis('equal')
+    ax = draw_f(ax, a, b, x)
+    ax = draw_circle(ax, radius, x_mean, y_mean)
+    stars_in_radius = get_stars_in_radius(radius, x_mean, y_mean)
+    logging.info(
+        f"There are {len(stars_in_radius)} stars in radius = {radius} \n {stars_in_radius}"
+    )
+    stars_in_d = get_stars_in_d(ax, d, stars_in_radius, a, b)
+    ax = draw_stars(ax, stars_in_radius, 2)
+    ax = draw_stars(ax, stars_in_d, 5)
+    plt.axis("equal")
     plt.grid(True)
-    plt.savefig(f'{asteroid._id}')
+    ax.invert_xaxis()
+    plt.savefig(f"{asteroid._id}")
     plt.close()
+
 
 @timeit
 def parse_horizons_response(asteroid_positons, stars_nearby_id):
@@ -257,35 +276,42 @@ def parse_horizons_response(asteroid_positons, stars_nearby_id):
     asteroid_table = tabulate(
         asteroid_positons, headers=asteroid_table_headers, tablefmt="grid"
     )
-    stars_nearby_table = tabulate(
-        stars_nearby_id, headers=["Star ID"], tablefmt="grid"
-    )
-    logging.info('\n' + asteroid_table +'\n'+ stars_nearby_table)
+    stars_nearby_table = tabulate(stars_nearby_id, headers=["Star ID"], tablefmt="grid")
+    logging.info("\n" + asteroid_table + "\n" + stars_nearby_table)
+
 
 @timeit
 def get_position(asteroid, session):
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
-    start_time = "'" +  datetime.today().strftime("%Y-%m-%d") + " " + asteroid.begin + "'"
+    start_time = (
+        "'" + datetime.today().strftime("%Y-%m-%d") + " " + asteroid.begin + "'"
+    )
     if asteroid.begin > asteroid.end:
         stop_time = (
-            "'"+ (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+            "'"
+            + (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
             + " "
             + asteroid.end
             + "'"
         )
     else:
-        stop_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + asteroid.end + "'"
+        stop_time = (
+            "'" + datetime.today().strftime("%Y-%m-%d") + " " + asteroid.end + "'"
+        )
 
-    response = session.get(url,params={
-        "format":"text",
-        "COMMAND":asteroid._id,
-        "OBJ_DATA":"NO",
-        "EPHEM_TYPE":"OBSERVER",
-        "START_TIME":start_time,
-        "STOP_TIME":stop_time,
-        "STEP_SIZE":"1m",
-        "QUANTITIES":"1"
-        })
+    response = session.get(
+        url,
+        params={
+            "format": "text",
+            "COMMAND": asteroid._id,
+            "OBJ_DATA": "NO",
+            "EPHEM_TYPE": "OBSERVER",
+            "START_TIME": start_time,
+            "STOP_TIME": stop_time,
+            "STEP_SIZE": "1m",
+            "QUANTITIES": "1",
+        },
+    )
     if response.status_code != 200:
         logging.exception("Horizons API error")
     return response
@@ -295,15 +321,16 @@ def main():
     email, password, page_name = read_config()
     driver = log_in(email, password, page_name)
     asteroids_list = get_asteroids_list(driver)
-    close_website(driver)
+    # close_website(driver)
     session = start_session()
     for asteroid in asteroids_list:
+        logging.info(f"asteroid_id{asteroid._id}")
         api_response = get_position(asteroid, session)
         asteroid_positions = separate_data(api_response, asteroid)
         if len(asteroid_positions) > 0:
-            temp(asteroid_positions,asteroid)
-        #stars_nearby_id = get_collided_stars(asteroid_positions)
-        #parse_horizons_response(asteroid_positions, stars_nearby_id)
+            plot(asteroid_positions, asteroid)
+        # stars_nearby_id = get_collided_stars(asteroid_positions)
+        # parse_horizons_response(asteroid_positions, stars_nearby_id)
 
 
 if __name__ == "__main__":
