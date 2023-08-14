@@ -239,7 +239,7 @@ def get_stars(radius,x,y, x_mean, y_mean, a,b, MAX_DISTANCE):
 @timeit
 def draw_stars(ax, stars, size):
     ax.plot(stars["ra"], stars["dec"], marker="*", ls="none", ms=size)
-    #logging.info(f'\n{stars["d"]}')
+    logging.info(f'\n{stars["d"]}')
     for i, mag in enumerate(stars["phot_g_mean_mag"]):
         if mag > 18:
             continue
@@ -337,7 +337,7 @@ def get_table_data(asteroid_positions, asteroid, asteroid_table_data, MAX_DISTAN
         row_color = get_row_color(stars_count,MAX_STARS)
         mag_values = stars_nearby["phot_g_mean_mag"][
             :5
-        ]  # Ograniczenie do maksymalnie 5 wartości mag
+        ]  # Limited to a maximum of 5 mag values
         mag_str = ", ".join(map(str, mag_values))
 
         start = datetime.strptime(asteroid.begin, "%H:%M")
@@ -367,13 +367,13 @@ def get_table_data(asteroid_positions, asteroid, asteroid_table_data, MAX_DISTAN
 
 @timeit
 def main():
-    email, password, page_name, RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE = read_config()
+    email, password, page_name, RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT = read_config()
     driver = log_in(email, password, page_name)
     asteroids_list = get_asteroids_list(driver)
     close_website(driver)
     session = start_session()
     asteroid_table_data = []
-    Gaia.ROW_LIMIT = 50
+    Gaia.ROW_LIMIT = QUERY_STARS_LIMIT
     for asteroid in asteroids_list:
         logging.info(f"asteroid_id {asteroid._id}")
         api_response = get_position(asteroid, session)
