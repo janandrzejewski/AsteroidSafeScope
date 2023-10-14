@@ -83,7 +83,7 @@ def separate_data(api_response, asteroid):
                 ra = better_pos(ra)
                 dec = better_pos(dec)
                 alt = get_altitude(ra, dec, time)
-                asteroid_positions.append([asteroid[0], time, ra, dec, alt])
+                asteroid_positions.append([asteroid[1], time, ra, dec, alt])
         return np.array(asteroid_positions)
     else:
         logging.exception("No ephemeris for target")
@@ -135,13 +135,13 @@ def get_position(start_time, stop_time, asteroid_names):
     return asteroid_pos
 
 @timeit
-def draw(data,asteroid_name):
+def draw(data):
     times = [entry[1].datetime for entry in data]
     altitudes = [entry[4].deg for entry in data]
     plt.plot(times, altitudes)
     plt.xlabel('Time')
     plt.ylabel('altitude (deg)')
-    plt.title('A(t) ' + asteroid_name)
+    plt.title('A(t) ' + data[0][0])
     min_deg = 20
     plt.axhline(y=min_deg, color='green', linestyle='--', label='Min deg = 20°')
     plt.legend(loc='upper left')
@@ -166,7 +166,7 @@ def main():
         + "'"
     )
     asteroid_pos = get_position(start_time, stop_time, asteroid_names)
-    draw(asteroid_pos,asteroid_names[1])
+    draw(asteroid_pos)
 
 if __name__ == "__main__":
     main()
