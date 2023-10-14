@@ -375,7 +375,6 @@ def main():
     close_website(driver)
     session = start_session()
     asteroid_table_data = []
-    Gaia.ROW_LIMIT = QUERY_STARS_LIMIT
     for asteroid in asteroids_list:
         logging.info(f"asteroid_id {asteroid._id}")
         api_response = get_position(asteroid, session)
@@ -386,12 +385,12 @@ def main():
 
             asteroid_table_data = get_table_data(asteroid_positions, asteroid, asteroid_table_data, MAX_DISTANCE, MAX_STARS,x, y, x_mean, y_mean,radius)
             
-            plot(asteroid,x,y,x_mean,y_mean,MAX_DISTANCE,radius)
+            #plot(asteroid,x,y,x_mean,y_mean,MAX_DISTANCE,radius)
         
     sorted_table_data = sorted(
         asteroid_table_data, key=lambda row: (row[4], -row[5])
     )
-    #print_table(sorted_table_data)
+    print_table(sorted_table_data)
 
 
 if __name__ == "__main__":
