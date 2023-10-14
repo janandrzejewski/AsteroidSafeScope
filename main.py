@@ -20,7 +20,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-logging.getLogger().setLevel(logging.WARNING)
+#logging.getLogger().setLevel(logging.WARNING)
 
 
 class bcolors:
@@ -74,9 +74,11 @@ def read_config():
 
         MAX_DISTANCE = config.getfloat("Parameters", "MAX_DISTANCE")
 
+        QUERY_STARS_LIMIT = config.getfloat("Parameters", "QUERY_STARS_LIMIT")
+    
     except FileNotFoundError:
-        logging.exception("Nie ma pliku config o nazwie config.ini")
-    return email, password, page_name, RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE
+        logging.exception("There is no config file named config.ini")
+    return email, password, page_name, RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT
 
 
 @timeit
@@ -230,7 +232,7 @@ def get_stars_in_d(MAX_DISTANCE,stars,a,b):
     return stars
 
 @timeit
-def get_stars(radius,x,y, x_mean, y_mean, a,b, MAX_DISTANCE):
+def get_stars(radius, x_mean, y_mean, a,b, MAX_DISTANCE):
     stars_in_radius = get_stars_in_radius(radius,x_mean,y_mean)
     logging.info(f"There are {len(stars_in_radius)} stars in radius = {radius}")    
     stars =  get_stars_in_d(MAX_DISTANCE,stars_in_radius,a,b)
@@ -248,7 +250,7 @@ def draw_stars(ax, stars, size):
     return ax
 
 @timeit
-def plot(asteroid_positions, asteroid,x,y,x_mean,y_mean,MAX_DISTANCE,radius):
+def plot(asteroid,x,y,x_mean,y_mean,MAX_DISTANCE,radius):
     fig, ax = plt.subplots()
     a, b = get_linear_f(x, y, x_mean, y_mean)
     ax = draw_f(ax, a, b, x)
@@ -331,7 +333,7 @@ def get_row_color(stars_count, MAX_STARS):
 def get_table_data(asteroid_positions, asteroid, asteroid_table_data, MAX_DISTANCE, MAX_STARS, x, y, x_mean, y_mean,radius):
     x, y, x_mean, y_mean = get_cartesian_positions(asteroid_positions)
     a, b = get_linear_f(x, y, x_mean, y_mean)
-    stars_nearby = get_stars(radius,x,y, x_mean, y_mean,a,b,MAX_DISTANCE)
+    stars_nearby = get_stars(radius, x_mean, y_mean,a,b,MAX_DISTANCE)
     stars_count = len(stars_nearby)
     if len(stars_nearby) < MAX_STARS:
         row_color = get_row_color(stars_count,MAX_STARS)
@@ -384,12 +386,12 @@ def main():
 
             asteroid_table_data = get_table_data(asteroid_positions, asteroid, asteroid_table_data, MAX_DISTANCE, MAX_STARS,x, y, x_mean, y_mean,radius)
             
-            #plot(asteroid_positions, asteroid,x,y,x_mean,y_mean,MAX_DISTANCE,radius)
+            plot(asteroid,x,y,x_mean,y_mean,MAX_DISTANCE,radius)
         
     sorted_table_data = sorted(
         asteroid_table_data, key=lambda row: (row[4], -row[5])
     )
-    print_table(sorted_table_data)
+    #print_table(sorted_table_data)
 
 
 if __name__ == "__main__":
