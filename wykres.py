@@ -8,6 +8,7 @@ import configparser
 from datetime import datetime, timedelta
 import requests
 import re
+import ephem
 from tabulate import tabulate
 import astropy.units as u
 from astropy.coordinates import SkyCoord
@@ -22,6 +23,8 @@ from astropy.coordinates import AltAz
 import matplotlib.pyplot as plt
 from astropy.time import Time
 from astropy.coordinates import Angle
+from astroplan import Observer
+
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -59,8 +62,6 @@ def timeit(func):
     return timed
 
 
-
-
 @timeit
 def separate_data(api_response, asteroid):
     match = re.search(r"\$\$SOE.*?\$\$EOE", api_response.text, re.DOTALL)
@@ -80,17 +81,30 @@ def separate_data(api_response, asteroid):
                 time = Time(datetime_obj)
                 ra = parts[2] + " " + parts[3] + " " + parts[4]
                 dec = parts[5] + " " + parts[6] + " " + parts[7]
-                ra = better_pos(ra)
-                dec = better_pos(dec)
+                ra = better_pos_ra(ra)
+                dec = better_pos_dec(dec)
                 alt = get_altitude(ra, dec, time)
-                asteroid_positions.append([asteroid[1], time, ra, dec, alt])
+                asteroid_positions.append([asteroid[2], time, ra, dec, alt])
         return np.array(asteroid_positions)
     else:
         logging.exception("No ephemeris for target")
         return []
 
+
+
 @timeit
-def better_pos(pos):
+def better_pos_ra(pos):
+    parts = pos.split()
+    hours = parts[0]
+    minutes = parts[1]
+    seconds = parts[2]
+
+    formatted_pos = f"{hours}h{minutes}m{seconds}s"
+    return formatted_pos
+
+
+@timeit
+def better_pos_dec(pos):
     parts = pos.split()
     hours = parts[0]
     minutes = parts[1]
@@ -98,6 +112,7 @@ def better_pos(pos):
 
     formatted_pos = f"{hours}d{minutes}m{seconds}s"
     return formatted_pos
+
 
 @timeit
 def get_altitude(ra, dec, observing_time):
@@ -110,7 +125,9 @@ def get_altitude(ra, dec, observing_time):
     )
     altitude_rad = altaz.alt
     altitude_deg = altitude_rad.to(u.deg)
+
     return altitude_deg
+
 
 @timeit
 def get_position(start_time, stop_time, asteroid_names):
@@ -120,12 +137,12 @@ def get_position(start_time, stop_time, asteroid_names):
         url,
         params={
             "format": "text",
-            "COMMAND": asteroid_names[1],
+            "COMMAND": asteroid_names[2],
             "OBJ_DATA": "NO",
             "EPHEM_TYPE": "OBSERVER",
             "START_TIME": start_time,
             "STOP_TIME": stop_time,
-            "STEP_SIZE": "1m",
+            "STEP_SIZE": "15m",
             "QUANTITIES": "1",
         },
     )
@@ -134,22 +151,39 @@ def get_position(start_time, stop_time, asteroid_names):
     asteroid_pos = separate_data(response, asteroid_names)
     return asteroid_pos
 
+
 @timeit
-def draw(data):
+def draw(data, night_start, night_end):
     times = [entry[1].datetime for entry in data]
-    altitudes = [entry[4].deg for entry in data]
+    altitudes = [entry[4].deg for entry in data] 
+    better_data = [entry for entry in data if entry[4].deg > 20 and entry[1].datetime > (night_start) and entry[1].datetime < night_end]
+    b_times = [entry[1].datetime for entry in better_data]
+    b_altitudes = [entry[4].deg for entry in better_data] 
     plt.plot(times, altitudes)
-    plt.xlabel('Time')
-    plt.ylabel('altitude (deg)')
-    plt.title('A(t) ' + data[0][0])
+    plt.plot(b_times, b_altitudes)
+    plt.xlabel("Time")
+    plt.ylabel("altitude (deg)")
+    plt.title("A(t) " + better_data[0][0])
     min_deg = 20
-    plt.axhline(y=min_deg, color='green', linestyle='--', label='Min deg = 20°')
-    plt.legend(loc='upper left')
+    plt.axhline(y=min_deg, color="green", linestyle="--", label="Min deg = 20°")
+    plt.legend(loc="upper left")
+    
     max_deg = max(altitudes)
     max_hour = times[altitudes.index(max_deg)]
-    print(max_deg,max_hour)
-    plt.show()
 
+    obs_start = b_times[0]
+    obs_end = b_times[-1]
+    print(obs_start,obs_end)
+    plt.axvline(
+        x=night_start, color="blue", linestyle="--", label="Początek nocy astronomicznej"
+    )
+    plt.axvline(
+        x=night_end, color="blue", linestyle="--", label="Koniec nocy astronomicznej"
+    )
+    
+    plt.ylim(0, 90)
+
+    plt.show()
 
 
 
@@ -162,11 +196,21 @@ def main():
         "'"
         + (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
         + " "
-        + "08:00"
+        + "11:00"
         + "'"
     )
     asteroid_pos = get_position(start_time, stop_time, asteroid_names)
-    draw(asteroid_pos)
+    location = EarthLocation(lat=-30 * u.deg, lon=-70 * u.deg, height=1750 * u.m)
+    subaru = Observer(location=location, name="Subaru")
+    night_start = subaru.twilight_evening_astronomical(
+        Time((datetime.today()))
+    )
+    night_end = subaru.twilight_morning_astronomical(
+        Time((datetime.today() + timedelta(days=1)))
+    )
+
+    draw(asteroid_pos, night_start.datetime, night_end.datetime)
+
 
 if __name__ == "__main__":
     main()
