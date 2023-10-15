@@ -63,7 +63,7 @@ def timeit(func):
 
 
 @timeit
-def separate_data(api_response, asteroid):
+def separate_data(api_response, name):
     match = re.search(r"\$\$SOE.*?\$\$EOE", api_response.text, re.DOTALL)
     if match:
         fragment = match.group()
@@ -84,12 +84,11 @@ def separate_data(api_response, asteroid):
                 ra = better_pos_ra(ra)
                 dec = better_pos_dec(dec)
                 alt = get_altitude(ra, dec, time)
-                asteroid_positions.append([asteroid[2], time, ra, dec, alt])
+                asteroid_positions.append([name, time, ra, dec, alt])
         return np.array(asteroid_positions)
     else:
         logging.exception("No ephemeris for target")
         return []
-
 
 
 @timeit
@@ -130,61 +129,51 @@ def get_altitude(ra, dec, observing_time):
 
 
 @timeit
-def get_position(start_time, stop_time, asteroid_names):
+def get_position(start_time, stop_time, name):
     session = requests.Session()
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
     response = session.get(
         url,
         params={
             "format": "text",
-            "COMMAND": asteroid_names[2],
+            "COMMAND": name,
             "OBJ_DATA": "NO",
             "EPHEM_TYPE": "OBSERVER",
             "START_TIME": start_time,
             "STOP_TIME": stop_time,
-            "STEP_SIZE": "15m",
+            "STEP_SIZE": "1m",
             "QUANTITIES": "1",
         },
     )
     if response.status_code != 200:
         logging.exception("Horizons API error")
-    asteroid_pos = separate_data(response, asteroid_names)
+    asteroid_pos = separate_data(response, name)
     return asteroid_pos
 
 
 @timeit
-def draw(data, night_start, night_end):
-    times = [entry[1].datetime for entry in data]
-    altitudes = [entry[4].deg for entry in data] 
-    better_data = [entry for entry in data if entry[4].deg > 20 and entry[1].datetime > (night_start) and entry[1].datetime < night_end]
-    b_times = [entry[1].datetime for entry in better_data]
-    b_altitudes = [entry[4].deg for entry in better_data] 
+def draw(night_start, night_end,times,altitudes,b_times,b_altitudes,obs_start,obs_end,name):
     plt.plot(times, altitudes)
     plt.plot(b_times, b_altitudes)
     plt.xlabel("Time")
     plt.ylabel("altitude (deg)")
-    plt.title("A(t) " + better_data[0][0])
+
     min_deg = 20
     plt.axhline(y=min_deg, color="green", linestyle="--", label="Min deg = 20°")
     plt.legend(loc="upper left")
-    
-    max_deg = max(altitudes)
-    max_hour = times[altitudes.index(max_deg)]
-
-    obs_start = b_times[0]
-    obs_end = b_times[-1]
-    print(obs_start,obs_end)
     plt.axvline(
-        x=night_start, color="blue", linestyle="--", label="Początek nocy astronomicznej"
+        x=night_start,
+        color="blue",
+        linestyle="--",
+        label="Początek nocy astronomicznej",
     )
     plt.axvline(
         x=night_end, color="blue", linestyle="--", label="Koniec nocy astronomicznej"
     )
-    
+    plt.title("A(t) " + name +  " START =  " + str(obs_start) +"END = " + str(obs_end))
     plt.ylim(0, 90)
 
     plt.show()
-
 
 
 @timeit
@@ -199,17 +188,30 @@ def main():
         + "11:00"
         + "'"
     )
-    asteroid_pos = get_position(start_time, stop_time, asteroid_names)
     location = EarthLocation(lat=-30 * u.deg, lon=-70 * u.deg, height=1750 * u.m)
-    subaru = Observer(location=location, name="Subaru")
-    night_start = subaru.twilight_evening_astronomical(
-        Time((datetime.today()))
-    )
-    night_end = subaru.twilight_morning_astronomical(
+    deepskychile = Observer(location=location, name="Subaru")
+    night_start = deepskychile.twilight_evening_astronomical(Time((datetime.today())))
+    night_end = deepskychile.twilight_morning_astronomical(
         Time((datetime.today() + timedelta(days=1)))
     )
-
-    draw(asteroid_pos, night_start.datetime, night_end.datetime)
+    for name in asteroid_names:
+        asteroid_pos = get_position(start_time, stop_time, name)
+        times = [entry[1].datetime for entry in asteroid_pos]
+        altitudes = [entry[4].deg for entry in asteroid_pos]
+        better_data = [
+            entry
+            for entry in asteroid_pos
+            if entry[4].deg > 20
+            and entry[1].datetime > (night_start)
+            and entry[1].datetime < night_end
+        ]
+        b_times = [entry[1].datetime for entry in better_data]
+        b_altitudes = [entry[4].deg for entry in better_data]
+        max_deg = max(altitudes)
+        max_hour = times[altitudes.index(max_deg)]
+        obs_start = b_times[0]
+        obs_end = b_times[-1]
+        draw(night_start.datetime, night_end.datetime,times,altitudes,b_times,b_altitudes,obs_start,obs_end,name)
 
 
 if __name__ == "__main__":
