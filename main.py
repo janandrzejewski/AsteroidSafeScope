@@ -23,7 +23,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.WARNING)
 
 
 class bcolors:
@@ -368,7 +368,7 @@ def print_table(asteroid_table_data):
 
 def main():
     RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT = read_config()
-    Gaia.ROW_LIMIT = 1500
+    Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
     with open("asteroidy.txt", "r") as file:
         asteroid_names = file.read().splitlines()
     start_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + "23:00" + "'"
@@ -380,7 +380,7 @@ def main():
         + "'"
     )
     location = EarthLocation(lat=-30 * u.deg, lon=-70 * u.deg, height=1750 * u.m)
-    deepskychile = Observer(location=location, name="Subaru")
+    deepskychile = Observer(location=location, name="deepskychile")
     night_start = deepskychile.twilight_evening_astronomical(Time((datetime.today())))
     night_end = deepskychile.twilight_morning_astronomical(
         Time((datetime.today() + timedelta(days=1)))
