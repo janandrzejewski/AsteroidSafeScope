@@ -18,12 +18,13 @@ from astropy.coordinates import AltAz
 import matplotlib.pyplot as plt
 from astropy.time import Time
 from astroplan import Observer
+import os
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-logging.getLogger().setLevel(logging.WARNING)
+# logging.getLogger().setLevel(logging.WARNING)
 
 
 class bcolors:
@@ -64,9 +65,11 @@ def read_config():
 
         QUERY_STARS_LIMIT = config.getfloat("Parameters", "QUERY_STARS_LIMIT")
 
+        MIN_DEG = config.getfloat("Parameters", "MIN_DEG")
+
     except FileNotFoundError:
         logging.exception("There is no config file named config.ini")
-    return RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT
+    return RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG
 
 
 @timeit
@@ -188,13 +191,12 @@ def draw(
     obs_start,
     obs_end,
     name,
+    min_deg,
 ):
     plt.plot(times, altitudes)
     plt.plot(b_times, b_altitudes)
     plt.xlabel("Time")
     plt.ylabel("altitude (deg)")
-
-    min_deg = 20
     plt.axhline(y=min_deg, color="green", linestyle="--", label="Min deg = 20°")
 
     plt.axvline(
@@ -209,7 +211,8 @@ def draw(
     plt.title("A(t) " + name + " START =  " + str(obs_start) + "END = " + str(obs_end))
     plt.ylim(0, 90)
     plt.legend(loc="upper left")
-    plt.savefig(f"{name}_altitude")
+    date = datetime.today().date().strftime("%d.%m.%Y")
+    plt.savefig(f"graphs/{name}_altitude_{date}.png")
     plt.clf()
 
 
@@ -306,7 +309,8 @@ def plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius):
     plt.axis("equal")
     plt.grid(True)
     ax.invert_xaxis()
-    plt.savefig(f"{name}_stars")
+    date = datetime.today().date().strftime("%d.%m.%Y")
+    plt.savefig(f"graphs/{name}_stars_{date}.png")
     plt.close()
 
 
@@ -367,8 +371,10 @@ def print_table(asteroid_table_data):
 
 
 def main():
-    RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT = read_config()
+    RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG = read_config()
     Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
+    if not os.path.exists('graphs'):
+        os.makedirs('graphs')
     with open("asteroidy.txt", "r") as file:
         asteroid_names = file.read().splitlines()
     start_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + "23:00" + "'"
@@ -413,6 +419,7 @@ def main():
             obs_start,
             obs_end,
             name,
+            MIN_DEG,
         )
         if len(asteroid_positions) > 0:
             x, y, x_mean, y_mean = get_cartesian_positions(asteroid_positions)
