@@ -211,7 +211,7 @@ def draw(
     plt.title("A(t) " + name + " START =  " + str(obs_start) + "END = " + str(obs_end))
     plt.ylim(0, 90)
     plt.legend(loc="upper left")
-    date = datetime.today().date().strftime("%d.%m.%Y")
+    date = datetime.today().date().strftime("%Y%m%d")
     plt.savefig(f"graphs/{name}_altitude_{date}.png")
     plt.clf()
 
@@ -309,7 +309,7 @@ def plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius):
     plt.axis("equal")
     plt.grid(True)
     ax.invert_xaxis()
-    date = datetime.today().date().strftime("%d.%m.%Y")
+    date = datetime.today().date().strftime("%Y%m%d")
     plt.savefig(f"graphs/{name}_stars_{date}.png")
     plt.close()
 
