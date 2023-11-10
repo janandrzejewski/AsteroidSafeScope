@@ -19,12 +19,16 @@ import matplotlib.pyplot as plt
 from astropy.time import Time
 from astroplan import Observer
 import os
+from flask import Flask, request, jsonify
+import pandas as pd
+
+app = Flask(__name__)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# logging.getLogger().setLevel(logging.WARNING)
+logging.getLogger().setLevel(logging.WARNING)
 
 
 class bcolors:
@@ -340,16 +344,13 @@ def get_table_data(
 
         mean_position = SkyCoord(x_mean, y_mean, unit=(u.deg, u.deg))
         duration = end - start
-        asteroid_row = [
-            row_color + name,
-            f"{row_color}There are {len(stars_nearby)} stars close to the path \n{row_color} MAG:{mag_str}{bcolors.ENDC}",
-            row_color + str(start),
-            row_color + str(end),
-            stars_count,
-            duration,
-            f"{mean_position.ra.to_string(unit = 'hour',decimal=True)} {mean_position.dec.to_string(decimal=True)}",
-        ]
-        asteroid_table_data.append(asteroid_row)
+        asteroid_table_data["Asteroid ID"].append(name)
+        asteroid_table_data["Info"].append(f"Istnieje {len(stars_nearby)} gwiazd blisko trasy \n MAG:{mag_str}")
+        asteroid_table_data["Start"].append(str(start))
+        asteroid_table_data["Stop"].append(str(end))
+        asteroid_table_data["Stars qty"].append(stars_count)
+        asteroid_table_data["Duration"].append(str(duration))
+        asteroid_table_data["Position"].append(f"{mean_position.ra.to_string(unit='hour', decimal=True)} {mean_position.dec.to_string(decimal=True)}")
     return asteroid_table_data
 
 
@@ -369,59 +370,70 @@ def print_table(asteroid_table_data):
     )
     print(f"Result:\n{asteroid_table}")
 
-
+@app.route('/main', methods=['POST'])
 def main():
     RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG = read_config()
     Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
+    data = request.get_json()
+    asteroid_names = data.get('asteroid_list').split(", ")
+    obs_date_str = data.get('date')
+    print(obs_date_str)
+    obs_date = datetime.strptime(obs_date_str, "%Y-%m-%d")
     if not os.path.exists('graphs'):
         os.makedirs('graphs')
-    with open("asteroidy.txt", "r") as file:
-        asteroid_names = file.read().splitlines()
-    start_time = "'" + datetime.today().strftime("%Y-%m-%d") + " " + "23:00" + "'"
+    start_time = "'" + obs_date.strftime("%Y-%m-%d") + " " + "23:00" + "'"
     stop_time = (
         "'"
-        + (datetime.today() + timedelta(days=1)).strftime("%Y-%m-%d")
+        + (obs_date + timedelta(days=1)).strftime("%Y-%m-%d")
         + " "
         + "11:00"
         + "'"
     )
     location = EarthLocation(lat=-30 * u.deg, lon=-70 * u.deg, height=1750 * u.m)
     deepskychile = Observer(location=location, name="deepskychile")
-    night_start = deepskychile.twilight_evening_astronomical(Time((datetime.today())))
+    night_start = deepskychile.twilight_evening_astronomical(Time((obs_date)))
     night_end = deepskychile.twilight_morning_astronomical(
-        Time((datetime.today() + timedelta(days=1)))
+        Time((obs_date + timedelta(days=1)))
     )
-    asteroid_table_data = []
+    asteroid_table_data = {
+    "Asteroid ID": [],
+    "Info": [],
+    "Start": [],
+    "Stop": [],
+    "Stars qty": [],
+    "Duration": [],
+    "Position": []
+}
     for name in asteroid_names:
         asteroid_positions = get_position(start_time, stop_time, name, location)
-        times = [entry[1].datetime for entry in asteroid_positions]
-        altitudes = [entry[4].deg for entry in asteroid_positions]
-        better_data = [
-            entry
-            for entry in asteroid_positions
-            if entry[4].deg > 20
-            and entry[1].datetime > (night_start)
-            and entry[1].datetime < night_end
-        ]
-        b_times = [entry[1].datetime for entry in better_data]
-        b_altitudes = [entry[4].deg for entry in better_data]
-        max_deg = max(altitudes)
-        max_hour = times[altitudes.index(max_deg)]
-        obs_start = b_times[0]
-        obs_end = b_times[-1]
-        draw(
-            night_start.datetime,
-            night_end.datetime,
-            times,
-            altitudes,
-            b_times,
-            b_altitudes,
-            obs_start,
-            obs_end,
-            name,
-            MIN_DEG,
-        )
         if len(asteroid_positions) > 0:
+            times = [entry[1].datetime for entry in asteroid_positions]
+            altitudes = [entry[4].deg for entry in asteroid_positions]
+            better_data = [
+                entry
+                for entry in asteroid_positions
+                if entry[4].deg > 20
+                and entry[1].datetime > (night_start)
+                and entry[1].datetime < night_end
+            ]
+            b_times = [entry[1].datetime for entry in better_data]
+            b_altitudes = [entry[4].deg for entry in better_data]
+            max_deg = max(altitudes)
+            max_hour = times[altitudes.index(max_deg)]
+            obs_start = b_times[0]
+            obs_end = b_times[-1]
+            # #draw(
+            #     night_start.datetime,
+            #     night_end.datetime,
+            #     times,
+            #     altitudes,
+            #     b_times,
+            #     b_altitudes,
+            #     obs_start,
+            #     obs_end,
+            #     name,
+            #     MIN_DEG,
+            # )
             x, y, x_mean, y_mean = get_cartesian_positions(asteroid_positions)
             radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
             asteroid_table_data = get_table_data(
@@ -437,11 +449,11 @@ def main():
                 y_mean,
                 radius,
             )
-            plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius)
+            #plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius)
 
-    sorted_table_data = sorted(asteroid_table_data, key=lambda row: (row[4], -row[5]))
-    print_table(sorted_table_data)
+    #sorted_table_data = sorted(asteroid_table_data, key=lambda row: (row[4]))
+    return jsonify(asteroid_table_data)
 
 
 if __name__ == "__main__":
-    main()
+    app.run(port=5000)
