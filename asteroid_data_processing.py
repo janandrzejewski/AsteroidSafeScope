@@ -1,24 +1,21 @@
-import matplotlib.pyplot as plt
-from matplotlib.patches import Circle
 import configparser
-from datetime import datetime, timedelta
-import requests
-import re
-import astropy.units as u
-from astropy.coordinates import SkyCoord
-from astroquery.gaia import Gaia
 import logging
-import time
-import numpy as np
-from astropy.coordinates import EarthLocation, SkyCoord
-from astropy.time import Time
-from astropy import units as u
-from astropy.coordinates import AltAz
-import matplotlib.pyplot as plt
-from astropy.time import Time
-from astroplan import Observer
 import os
-from flask import Flask, request, jsonify
+import re
+import time
+from datetime import datetime, timedelta
+
+import astropy.units as u
+import matplotlib.pyplot as plt
+import numpy as np
+import requests
+from astroplan import Observer
+from astropy import units as u
+from astropy.coordinates import AltAz, EarthLocation, SkyCoord
+from astropy.time import Time
+from astroquery.gaia import Gaia
+from flask import Flask, jsonify, request
+from matplotlib.patches import Circle
 
 app = Flask(__name__)
 
@@ -26,7 +23,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-#logging.getLogger().setLevel(logging.WARNING)
+# logging.getLogger().setLevel(logging.WARNING)
 
 
 class bcolors:
@@ -73,6 +70,7 @@ def read_config():
         logging.exception("There is no config file named config.ini")
     return RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG
 
+
 @timeit
 def separate_data(api_response, name, location):
     match = re.search(r"\$\$SOE.*?\$\$EOE", api_response.text, re.DOTALL)
@@ -101,6 +99,7 @@ def separate_data(api_response, name, location):
         logging.exception("No ephemeris for target")
         return []
 
+
 def better_pos_ra(pos):
     parts = pos.split()
     hours = parts[0]
@@ -126,6 +125,7 @@ def get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR):
     logging.info(f"radius = {radius}")
     return radius
 
+
 def get_cartesian_positions(asteroid_positions):
     arr = asteroid_positions
     asteroid_cartesian_positions = SkyCoord(
@@ -138,6 +138,7 @@ def get_cartesian_positions(asteroid_positions):
     x_mean = np.mean(x)
     y_mean = np.mean(y)
     return x, y, x_mean, y_mean
+
 
 @timeit
 def get_altitude(ra, dec, observing_time, observing_location):
@@ -172,6 +173,7 @@ def get_position(start_time, stop_time, name, location):
         logging.exception("Horizons API error")
     asteroid_pos = separate_data(response, name, location)
     return asteroid_pos
+
 
 @timeit
 def draw(
@@ -208,12 +210,14 @@ def draw(
     plt.savefig(f"graphs/{name}_altitude_{date}.png")
     plt.clf()
 
+
 @timeit
 def get_stars_in_radius(radius, x_mean, y_mean):
     coord = SkyCoord(ra=x_mean, dec=y_mean, unit=(u.deg, u.deg))
     j = Gaia.cone_search(coord, radius * u.deg)
     result = j.get_results()
     return result
+
 
 @timeit
 def get_stars_in_d(MAX_DISTANCE, stars, a, b):
@@ -223,11 +227,13 @@ def get_stars_in_d(MAX_DISTANCE, stars, a, b):
     stars = stars[stars["d"] < MAX_DISTANCE]
     return stars
 
+
 @timeit
 def get_stars(radius, x_mean, y_mean, a, b, MAX_DISTANCE):
     stars_in_radius = get_stars_in_radius(radius, x_mean, y_mean)
     stars = get_stars_in_d(MAX_DISTANCE, stars_in_radius, a, b)
     return stars
+
 
 @timeit
 def get_linear_f(x, y, x_mean, y_mean):
@@ -269,6 +275,7 @@ def draw_stars(ax, stars, size):
         ax.annotate(round(mag, 2), (stars["ra"][i], stars["dec"][i]))
     ax.invert_xaxis()
     return ax
+
 
 @timeit
 def plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius):
@@ -314,42 +321,48 @@ def get_table_data(
         mean_position = SkyCoord(x_mean, y_mean, unit=(u.deg, u.deg))
         duration = end - start
         asteroid_table_data["Asteroid ID"].append(name)
-        asteroid_table_data["Info"].append(f"Istnieje {len(stars_nearby)} gwiazd blisko trasy \n MAG:{mag_str}")
+        asteroid_table_data["Info"].append(
+            f"Istnieje {len(stars_nearby)} gwiazd blisko trasy \n MAG:{mag_str}"
+        )
         asteroid_table_data["Start"].append(str(start))
         asteroid_table_data["Stop"].append(str(end))
         asteroid_table_data["Stars qty"].append(stars_count)
         asteroid_table_data["Duration"].append(str(duration))
-        asteroid_table_data["Position"].append(f"{mean_position.ra.to_string(unit='hour', decimal=True)} {mean_position.dec.to_string(decimal=True)}")
+        asteroid_table_data["Position"].append(
+            f"{mean_position.ra.to_string(unit='hour', decimal=True)} {mean_position.dec.to_string(decimal=True)}"
+        )
     return asteroid_table_data
 
 
-@app.route('/asterod_data_processing', methods=['POST'])
+@app.route("/asterod_data_processing", methods=["POST"])
 def main():
     RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG = read_config()
     Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
     data = request.get_json()
-    asteroid_names = data.get('asteroid_list').split(", ")
-    obs_date_str = data.get('date')
+    asteroid_names = data.get("asteroid_list").split(", ")
+    obs_date_str = data.get("date")
     obs_date = datetime.strptime(obs_date_str, "%Y-%m-%d")
-    if not os.path.exists('graphs'):
-        os.makedirs('graphs')
+    if not os.path.exists("graphs"):
+        os.makedirs("graphs")
     location = EarthLocation(lat=-30 * u.deg, lon=-70 * u.deg, height=1750 * u.m)
     deepskychile = Observer(location=location, name="deepskychile")
-    night_start = deepskychile.twilight_evening_astronomical(Time((obs_date + timedelta(days=1))))
+    night_start = deepskychile.twilight_evening_astronomical(
+        Time((obs_date + timedelta(days=1)))
+    )
     night_end = deepskychile.twilight_morning_astronomical(
         Time((obs_date + timedelta(days=1)))
-    ) #dziala tylko gdy night_start zaczyna sie juz nastepnego dnia :p
-    start_time = "'" + str(night_start.datetime.strftime('%Y-%m-%d %H:%M')) + "'"
-    stop_time = "'" + str(night_end.datetime.strftime('%Y-%m-%d %H:%M')) + "'"
+    )  # dziala tylko gdy night_start zaczyna sie juz nastepnego dnia :p
+    start_time = "'" + str(night_start.datetime.strftime("%Y-%m-%d %H:%M")) + "'"
+    stop_time = "'" + str(night_end.datetime.strftime("%Y-%m-%d %H:%M")) + "'"
     asteroid_table_data = {
-    "Asteroid ID": [],
-    "Info": [],
-    "Start": [],
-    "Stop": [],
-    "Stars qty": [],
-    "Duration": [],
-    "Position": []
-}
+        "Asteroid ID": [],
+        "Info": [],
+        "Start": [],
+        "Stop": [],
+        "Stars qty": [],
+        "Duration": [],
+        "Position": [],
+    }
     for name in asteroid_names:
         asteroid_positions = get_position(start_time, stop_time, name, location)
         if len(asteroid_positions) > 0:
@@ -398,6 +411,7 @@ def main():
             # plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius)
 
     return jsonify(asteroid_table_data)
+
 
 if __name__ == "__main__":
     app.run(port=5000)
