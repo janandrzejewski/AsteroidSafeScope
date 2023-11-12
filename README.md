@@ -1,4 +1,5 @@
 # AsteroidSafeScope
+Protecting Observations from Stellar Interference 
 
 AsteroidSafeScope is a tool designed for swift verification during asteroid observation planning. It aids in quickly checking if stars are present along the path of an asteroid, facilitating efficient observation planning.
 ![image](https://github.com/janandrzejewski/AsteroidSafeScope/assets/67760124/d9f0de39-cc3e-4d62-aa2c-8f6242eb404d)
