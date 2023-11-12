@@ -4,7 +4,6 @@ import configparser
 from datetime import datetime, timedelta
 import requests
 import re
-from tabulate import tabulate
 import astropy.units as u
 from astropy.coordinates import SkyCoord
 from astroquery.gaia import Gaia
@@ -20,7 +19,6 @@ from astropy.time import Time
 from astroplan import Observer
 import os
 from flask import Flask, request, jsonify
-import pandas as pd
 
 app = Flask(__name__)
 
@@ -141,6 +139,7 @@ def get_cartesian_positions(asteroid_positions):
     y_mean = np.mean(y)
     return x, y, x_mean, y_mean
 
+@timeit
 def get_altitude(ra, dec, observing_time, observing_location):
     coord = SkyCoord(ra, dec)
     altaz = coord.transform_to(
@@ -209,14 +208,14 @@ def draw(
     plt.savefig(f"graphs/{name}_altitude_{date}.png")
     plt.clf()
 
-
+@timeit
 def get_stars_in_radius(radius, x_mean, y_mean):
     coord = SkyCoord(ra=x_mean, dec=y_mean, unit=(u.deg, u.deg))
     j = Gaia.cone_search(coord, radius * u.deg)
     result = j.get_results()
     return result
 
-
+@timeit
 def get_stars_in_d(MAX_DISTANCE, stars, a, b):
     x = stars["ra"]
     y = stars["dec"]
@@ -224,13 +223,13 @@ def get_stars_in_d(MAX_DISTANCE, stars, a, b):
     stars = stars[stars["d"] < MAX_DISTANCE]
     return stars
 
-
+@timeit
 def get_stars(radius, x_mean, y_mean, a, b, MAX_DISTANCE):
     stars_in_radius = get_stars_in_radius(radius, x_mean, y_mean)
     stars = get_stars_in_d(MAX_DISTANCE, stars_in_radius, a, b)
     return stars
 
-
+@timeit
 def get_linear_f(x, y, x_mean, y_mean):
     delta_x = x - x_mean
     delta_y = y - y_mean
@@ -238,16 +237,6 @@ def get_linear_f(x, y, x_mean, y_mean):
     a = np.sum(delta_x * delta_y) / np.sum(delta_x**2)
     b = y_mean - a * x_mean
     return a, b
-
-
-def get_row_color(stars_count, MAX_STARS):
-    if stars_count == 0:
-        row_color = bcolors.OKGREEN  # Green
-    elif stars_count < MAX_STARS / 2:
-        row_color = bcolors.WARNING  # Orange
-    else:
-        row_color = bcolors.FAIL  # Red
-    return row_color
 
 
 def f(a, b, x):
@@ -317,7 +306,6 @@ def get_table_data(
     stars_nearby = get_stars(radius, x_mean, y_mean, a, b, MAX_DISTANCE)
     stars_count = len(stars_nearby)
     if len(stars_nearby) < MAX_STARS:
-        row_color = get_row_color(stars_count, MAX_STARS)
         mag_values = stars_nearby["phot_g_mean_mag"][
             :5
         ]  # Limited to a maximum of 5 mag values
@@ -334,22 +322,6 @@ def get_table_data(
         asteroid_table_data["Position"].append(f"{mean_position.ra.to_string(unit='hour', decimal=True)} {mean_position.dec.to_string(decimal=True)}")
     return asteroid_table_data
 
-
-@timeit
-def print_table(asteroid_table_data):
-    asteroid_table_headers = [
-        "Asteroid ID",
-        "Info",
-        "Start",
-        "Stop",
-        "Stars qty",
-        "Duration",
-        "Position",
-    ]
-    asteroid_table = tabulate(
-        asteroid_table_data, headers=asteroid_table_headers, tablefmt="grid"
-    )
-    print(f"Result:\n{asteroid_table}")
 
 @app.route('/asterod_data_processing', methods=['POST'])
 def main():
@@ -425,7 +397,6 @@ def main():
             )
             # plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius)
 
-    #sorted_table_data = sorted(asteroid_table_data, key=lambda row: (row[4]))
     return jsonify(asteroid_table_data)
 
 if __name__ == "__main__":
