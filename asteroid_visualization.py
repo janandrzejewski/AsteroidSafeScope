@@ -39,7 +39,7 @@ def update_output(n_clicks, asteroid_list, date):
             'asteroid_list': asteroid_list,
             'date': date
         }
-        response = requests.post('http://localhost:5000/main', json=data)
+        response = requests.post('http://localhost:5000/asterod_data_processing', json=data)
         if response.status_code == 200:
             data_dict = response.json()
 
