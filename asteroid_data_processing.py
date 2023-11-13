@@ -26,18 +26,6 @@ logging.basicConfig(
 # logging.getLogger().setLevel(logging.WARNING)
 
 
-class bcolors:
-    HEADER = "\033[95m"
-    OKBLUE = "\033[94m"
-    OKCYAN = "\033[96m"
-    OKGREEN = "\033[92m"
-    WARNING = "\033[93m"
-    FAIL = "\033[91m"
-    ENDC = "\033[0m"
-    BOLD = "\033[1m"
-    UNDERLINE = "\033[4m"
-
-
 def timeit(func):
     def timed(*args, **kwargs):
         ts = time.time()
@@ -52,22 +40,18 @@ def timeit(func):
 @timeit
 def read_config():
     config_path = "config.ini"
+    config = configparser.ConfigParser()
     try:
-        config = configparser.ConfigParser()
         config.read(config_path)
-
-        RADIUS_FACTOR = config.getfloat("Parameters", "RADIUS_FACTOR")
-
-        MAX_STARS = config.getint("Parameters", "MAX_STARS")
-
-        MAX_DISTANCE = config.getfloat("Parameters", "MAX_DISTANCE")
-
-        QUERY_STARS_LIMIT = config.getfloat("Parameters", "QUERY_STARS_LIMIT")
-
-        MIN_DEG = config.getfloat("Parameters", "MIN_DEG")
-
     except FileNotFoundError:
         logging.exception("There is no config file named config.ini")
+    else:
+        RADIUS_FACTOR = config.getfloat("Parameters", "RADIUS_FACTOR")
+        MAX_STARS = config.getint("Parameters", "MAX_STARS")
+        MAX_DISTANCE = config.getfloat("Parameters", "MAX_DISTANCE")
+        QUERY_STARS_LIMIT = config.getfloat("Parameters", "QUERY_STARS_LIMIT")
+        MIN_DEG = config.getfloat("Parameters", "MIN_DEG")
+
     return RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG
 
 
@@ -85,11 +69,9 @@ def separate_data(api_response, name, location):
             if len(parts) >= 2:
                 date_time = parts[0] + " " + parts[1]
                 datetime_obj = datetime.strptime(date_time, "%Y-%b-%d %H:%M")
-
-                # Tworzenie obiektu Time z obiektu datetime
                 time = Time(datetime_obj)
-                ra = parts[2] + " " + parts[3] + " " + parts[4]
-                dec = parts[5] + " " + parts[6] + " " + parts[7]
+                ra = f"{parts[2]} {parts[3]} {parts[4]}"
+                dec = f"{parts[5]} {parts[6]} {parts[7]}"
                 ra = better_pos_ra(ra)
                 dec = better_pos_dec(dec)
                 alt = get_altitude(ra, dec, time, location)
@@ -100,6 +82,7 @@ def separate_data(api_response, name, location):
         return []
 
 
+@timeit
 def better_pos_ra(pos):
     parts = pos.split()
     hours = parts[0]
@@ -110,6 +93,7 @@ def better_pos_ra(pos):
     return formatted_pos
 
 
+@timeit
 def better_pos_dec(pos):
     parts = pos.split()
     hours = parts[0]
@@ -120,12 +104,14 @@ def better_pos_dec(pos):
     return formatted_pos
 
 
-def get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR):
-    radius = (np.sqrt((x[0] - x_mean) ** 2 + (y[0] - y_mean) ** 2)) * RADIUS_FACTOR
+@timeit
+def get_radius(x, y, x_mean, y_mean, radius_factor):
+    radius = (np.sqrt((x[0] - x_mean) ** 2 + (y[0] - y_mean) ** 2)) * radius_factor
     logging.info(f"radius = {radius}")
     return radius
 
 
+@timeit
 def get_cartesian_positions(asteroid_positions):
     arr = asteroid_positions
     asteroid_cartesian_positions = SkyCoord(
@@ -154,9 +140,8 @@ def get_altitude(ra, dec, observing_time, observing_location):
 
 @timeit
 def get_position(start_time, stop_time, name, location):
-    session = requests.Session()
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
-    response = session.get(
+    response = requests.get(
         url,
         params={
             "format": "text",
@@ -169,46 +154,9 @@ def get_position(start_time, stop_time, name, location):
             "QUANTITIES": "1",
         },
     )
-    if response.status_code != 200:
-        logging.exception("Horizons API error")
+    response.raise_for_status()
     asteroid_pos = separate_data(response, name, location)
     return asteroid_pos
-
-
-@timeit
-def draw(
-    night_start,
-    night_end,
-    times,
-    altitudes,
-    b_times,
-    b_altitudes,
-    obs_start,
-    obs_end,
-    name,
-    min_deg,
-):
-    plt.plot(times, altitudes)
-    plt.plot(b_times, b_altitudes)
-    plt.xlabel("Time")
-    plt.ylabel("altitude (deg)")
-    plt.axhline(y=min_deg, color="green", linestyle="--", label="Min deg = 20°")
-
-    plt.axvline(
-        x=night_start,
-        color="blue",
-        linestyle="--",
-        label="Początek nocy astronomicznej",
-    )
-    plt.axvline(
-        x=night_end, color="blue", linestyle="--", label="Koniec nocy astronomicznej"
-    )
-    plt.title("A(t) " + name + " START =  " + str(obs_start) + "END = " + str(obs_end))
-    plt.ylim(0, 90)
-    plt.legend(loc="upper left")
-    date = datetime.today().date().strftime("%Y%m%d")
-    plt.savefig(f"graphs/{name}_altitude_{date}.png")
-    plt.clf()
 
 
 @timeit
@@ -220,7 +168,7 @@ def get_stars_in_radius(radius, x_mean, y_mean):
 
 
 @timeit
-def get_stars_in_d(MAX_DISTANCE, stars, a, b):
+def get_stars_in_distance(MAX_DISTANCE, stars, a, b):
     x = stars["ra"]
     y = stars["dec"]
     stars["d"] = abs((a * x + -1 * y + b) / np.sqrt(a**2 + 1))
@@ -231,7 +179,7 @@ def get_stars_in_d(MAX_DISTANCE, stars, a, b):
 @timeit
 def get_stars(radius, x_mean, y_mean, a, b, MAX_DISTANCE):
     stars_in_radius = get_stars_in_radius(radius, x_mean, y_mean)
-    stars = get_stars_in_d(MAX_DISTANCE, stars_in_radius, a, b)
+    stars = get_stars_in_distance(MAX_DISTANCE, stars_in_radius, a, b)
     return stars
 
 
@@ -243,56 +191,6 @@ def get_linear_f(x, y, x_mean, y_mean):
     a = np.sum(delta_x * delta_y) / np.sum(delta_x**2)
     b = y_mean - a * x_mean
     return a, b
-
-
-def f(a, b, x):
-    return a * x + b
-
-
-def draw_f(ax, a, b, x):
-    ax.plot(x, f(a, b, x), color="red")
-    return ax
-
-
-def draw_circle(ax, radius, x_mean, y_mean):
-    center = (x_mean, y_mean)
-    circle = Circle(center, radius, edgecolor="black", facecolor="none")
-    ax.add_patch(circle)
-    xmin = center[0] - radius - 1
-    xmax = center[0] + radius + 1
-    ymin = center[1] - radius - 1
-    ymax = center[1] + radius + 1
-    ax.set_xlim(xmin, xmax)
-    ax.set_ylim(ymin, ymax)
-    return ax
-
-
-def draw_stars(ax, stars, size):
-    ax.plot(stars["ra"], stars["dec"], marker="*", ls="none", ms=size)
-    for i, mag in enumerate(stars["phot_g_mean_mag"]):
-        if mag > 18:
-            continue
-        ax.annotate(round(mag, 2), (stars["ra"][i], stars["dec"][i]))
-    ax.invert_xaxis()
-    return ax
-
-
-@timeit
-def plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius):
-    fig, ax = plt.subplots()
-    a, b = get_linear_f(x, y, x_mean, y_mean)
-    ax = draw_f(ax, a, b, x)
-    ax = draw_circle(ax, radius, x_mean, y_mean)
-    stars_in_radius = get_stars_in_radius(radius, x_mean, y_mean)
-    stars_in_d = get_stars_in_d(MAX_DISTANCE, stars_in_radius, a, b)
-    ax = draw_stars(ax, stars_in_radius, 2)
-    ax = draw_stars(ax, stars_in_d, 5)
-    plt.axis("equal")
-    plt.grid(True)
-    ax.invert_xaxis()
-    date = datetime.today().date().strftime("%Y%m%d")
-    plt.savefig(f"graphs/{name}_stars_{date}.png")
-    plt.close()
 
 
 @timeit
@@ -342,8 +240,6 @@ def main():
     asteroid_names = data.get("asteroid_list").split(", ")
     obs_date_str = data.get("date")
     obs_date = datetime.strptime(obs_date_str, "%Y-%m-%d")
-    if not os.path.exists("graphs"):
-        os.makedirs("graphs")
     location = EarthLocation(lat=-30 * u.deg, lon=-70 * u.deg, height=1750 * u.m)
     deepskychile = Observer(location=location, name="deepskychile")
     night_start = deepskychile.twilight_evening_astronomical(
@@ -352,8 +248,8 @@ def main():
     night_end = deepskychile.twilight_morning_astronomical(
         Time((obs_date + timedelta(days=1)))
     )  # dziala tylko gdy night_start zaczyna sie juz nastepnego dnia :p
-    start_time = "'" + str(night_start.datetime.strftime("%Y-%m-%d %H:%M")) + "'"
-    stop_time = "'" + str(night_end.datetime.strftime("%Y-%m-%d %H:%M")) + "'"
+    start_time = f"'{night_start.datetime.strftime('%Y-%m-%d %H:%M')}'"
+    stop_time = f"'{night_end.datetime.strftime('%Y-%m-%d %H:%M')}'"
     asteroid_table_data = {
         "Asteroid ID": [],
         "Info": [],
@@ -366,8 +262,6 @@ def main():
     for name in asteroid_names:
         asteroid_positions = get_position(start_time, stop_time, name, location)
         if len(asteroid_positions) > 0:
-            times = [entry[1].datetime for entry in asteroid_positions]
-            altitudes = [entry[4].deg for entry in asteroid_positions]
             better_data = [
                 entry
                 for entry in asteroid_positions
@@ -376,23 +270,8 @@ def main():
                 and entry[1].datetime < night_end
             ]
             b_times = [entry[1].datetime for entry in better_data]
-            b_altitudes = [entry[4].deg for entry in better_data]
-            max_deg = max(altitudes)
-            max_hour = times[altitudes.index(max_deg)]
             obs_start = b_times[0]
             obs_end = b_times[-1]
-            # draw(
-            #     night_start.datetime,
-            #     night_end.datetime,
-            #     times,
-            #     altitudes,
-            #     b_times,
-            #     b_altitudes,
-            #     obs_start,
-            #     obs_end,
-            #     name,
-            #     MIN_DEG,
-            # )
             x, y, x_mean, y_mean = get_cartesian_positions(asteroid_positions)
             radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
             asteroid_table_data = get_table_data(
@@ -408,8 +287,6 @@ def main():
                 y_mean,
                 radius,
             )
-            # plot(name, x, y, x_mean, y_mean, MAX_DISTANCE, radius)
-
     return jsonify(asteroid_table_data)
 
 
