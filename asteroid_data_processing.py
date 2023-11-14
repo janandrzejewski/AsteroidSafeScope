@@ -70,10 +70,8 @@ def separate_data(api_response, name, location):
                 date_time = parts[0] + " " + parts[1]
                 datetime_obj = datetime.strptime(date_time, "%Y-%b-%d %H:%M")
                 time = Time(datetime_obj)
-                ra = f"{parts[2]} {parts[3]} {parts[4]}"
-                dec = f"{parts[5]} {parts[6]} {parts[7]}"
-                ra = better_pos_ra(ra)
-                dec = better_pos_dec(dec)
+                ra = f"{parts[2]}h{parts[3]}m{parts[4]}s"
+                dec = f"{parts[5]}d{parts[6]}m{parts[7]}s"
                 alt = get_altitude(ra, dec, time, location)
                 asteroid_positions.append([name, time, ra, dec, alt])
         return np.array(asteroid_positions)
@@ -83,25 +81,16 @@ def separate_data(api_response, name, location):
 
 
 @timeit
-def better_pos_ra(pos):
-    parts = pos.split()
-    hours = parts[0]
-    minutes = parts[1]
-    seconds = parts[2]
+def get_altitude(ra, dec, observing_time, observing_location):
+    coord = SkyCoord(ra, dec)
+    altaz = coord.transform_to(
+        AltAz(obstime=observing_time, location=observing_location)
+    )
+    altitude_rad = altaz.alt
+    altitude_deg = altitude_rad.to(u.deg)
 
-    formatted_pos = f"{hours}h{minutes}m{seconds}s"
-    return formatted_pos
+    return altitude_deg
 
-
-@timeit
-def better_pos_dec(pos):
-    parts = pos.split()
-    hours = parts[0]
-    minutes = parts[1]
-    seconds = parts[2]
-
-    formatted_pos = f"{hours}d{minutes}m{seconds}s"
-    return formatted_pos
 
 
 @timeit
@@ -126,16 +115,6 @@ def get_cartesian_positions(asteroid_positions):
     return x, y, x_mean, y_mean
 
 
-@timeit
-def get_altitude(ra, dec, observing_time, observing_location):
-    coord = SkyCoord(ra, dec)
-    altaz = coord.transform_to(
-        AltAz(obstime=observing_time, location=observing_location)
-    )
-    altitude_rad = altaz.alt
-    altitude_deg = altitude_rad.to(u.deg)
-
-    return altitude_deg
 
 
 @timeit
