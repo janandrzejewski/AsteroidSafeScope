@@ -4,7 +4,7 @@ import os
 import re
 import time
 from datetime import datetime, timedelta
-
+import pandas as pd
 import astropy.units as u
 import matplotlib.pyplot as plt
 import numpy as np
@@ -16,6 +16,8 @@ from astropy.time import Time
 from astroquery.gaia import Gaia
 from flask import Flask, jsonify, request
 from matplotlib.patches import Circle
+
+from io import StringIO
 
 app = Flask(__name__)
 
@@ -57,62 +59,56 @@ def read_config():
 
 @timeit
 def separate_data(api_response, name, location):
-    match = re.search(r"\$\$SOE.*?\$\$EOE", api_response.text, re.DOTALL)
+    match = re.search(r"(?<=\$\$SOE).*?(?=\$\$EOE)", api_response.text, re.DOTALL)
     if match:
-        fragment = match.group()
-        lines = fragment.strip().split("\n")
-        asteroid_positions = []
+        text_data = StringIO(match.group())
+        df = pd.read_csv(text_data, sep='\s+',header=None)
+        df['datatime'] = df.apply(get_datatime,axis = 1)
+        df['coord'] = df.apply(convert_to_coo,axis = 1)
+        df['alt'] = df.apply(get_altitude,axis = 1,observing_location = location)
+        df = df.drop(df.columns[:8], axis=1)
+    return df
 
-        for line in lines:
-            line = line.strip()
-            parts = line.split()
-            if len(parts) >= 2:
-                date_time = parts[0] + " " + parts[1]
-                datetime_obj = datetime.strptime(date_time, "%Y-%b-%d %H:%M")
-                time = Time(datetime_obj)
-                ra = f"{parts[2]}h{parts[3]}m{parts[4]}s"
-                dec = f"{parts[5]}d{parts[6]}m{parts[7]}s"
-                alt = get_altitude(ra, dec, time, location)
-                asteroid_positions.append([name, time, ra, dec, alt])
-        return np.array(asteroid_positions)
-    else:
-        logging.exception("No ephemeris for target")
-        return []
+def convert_to_coo(row):
+    ra = f"{row[2]}h{row[3]}m{row[4]}s"
+    dec = f"{row[5]}d{row[6]}m{row[7]}s"
+    coord = SkyCoord(ra,dec, unit=(u.hourangle, u.deg))
+    return coord
 
 
-@timeit
-def get_altitude(ra, dec, observing_time, observing_location):
-    coord = SkyCoord(ra, dec)
+
+def get_datatime(row):
+  date_time = f'{row[0]} {row[1]}'
+  datetime_obj = datetime.strptime(date_time, "%Y-%b-%d %H:%M")
+
+  return datetime_obj
+
+def get_altitude(row,observing_location):
+    coord = row['coord']
     altaz = coord.transform_to(
-        AltAz(obstime=observing_time, location=observing_location)
+        AltAz(obstime=row['datatime'], location=observing_location)
     )
     altitude_rad = altaz.alt
     altitude_deg = altitude_rad.to(u.deg)
 
     return altitude_deg
 
-
-
 @timeit
 def get_radius(x, y, x_mean, y_mean, radius_factor):
-    radius = (np.sqrt((x[0] - x_mean) ** 2 + (y[0] - y_mean) ** 2)) * radius_factor
+    radius = (np.sqrt((x.iloc[0] - x_mean) ** 2 + (y.iloc[0] - y_mean) ** 2)) * radius_factor
     logging.info(f"radius = {radius}")
     return radius
 
-
 @timeit
-def get_cartesian_positions(asteroid_positions):
-    arr = asteroid_positions
-    asteroid_cartesian_positions = SkyCoord(
-        arr[:, 2], arr[:, 3], unit=(u.hourangle, u.deg)
-    )
+def get_cartesian_positions(filtered_df):
+    x = filtered_df['coord'].apply(lambda x: x.ra.deg)
+    y = filtered_df['coord'].apply(lambda x: x.dec.deg)
 
-    x = asteroid_cartesian_positions.ra.deg
-    y = asteroid_cartesian_positions.dec.deg
-
+    # Obliczenie średnich wartości
     x_mean = np.mean(x)
     y_mean = np.mean(y)
     return x, y, x_mean, y_mean
+
 
 
 
@@ -155,7 +151,6 @@ def get_stars_in_distance(MAX_DISTANCE, stars, a, b):
     return stars
 
 
-@timeit
 def get_stars(radius, x_mean, y_mean, a, b, MAX_DISTANCE):
     stars_in_radius = get_stars_in_radius(radius, x_mean, y_mean)
     stars = get_stars_in_distance(MAX_DISTANCE, stars_in_radius, a, b)
@@ -239,33 +234,27 @@ def main():
         "Position": [],
     }
     for name in asteroid_names:
-        asteroid_positions = get_position(start_time, stop_time, name, location)
-        if len(asteroid_positions) > 0:
-            better_data = [
-                entry
-                for entry in asteroid_positions
-                if entry[4].deg > 20
-                and entry[1].datetime > (night_start)
-                and entry[1].datetime < night_end
-            ]
-            b_times = [entry[1].datetime for entry in better_data]
-            obs_start = b_times[0]
-            obs_end = b_times[-1]
-            x, y, x_mean, y_mean = get_cartesian_positions(asteroid_positions)
-            radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
-            asteroid_table_data = get_table_data(
-                obs_start,
-                obs_end,
-                name,
-                asteroid_table_data,
-                MAX_DISTANCE,
-                MAX_STARS,
-                x,
-                y,
-                x_mean,
-                y_mean,
-                radius,
-            )
+        asteroid_df = get_position(start_time, stop_time, name, location)
+        alt_condition = asteroid_df['alt'].apply(lambda x: x.value > 20 if hasattr(x, 'value') else x > 20)
+        datatime_condition = (asteroid_df['datatime'] > night_start.datetime) & (asteroid_df['datatime'] < night_end.datetime)
+        filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(by='datatime')
+        obs_start = filtered_df['datatime'].iloc[0]
+        obs_end = filtered_df['datatime'].iloc[-1]
+        x, y, x_mean, y_mean = get_cartesian_positions(filtered_df)
+        radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
+        asteroid_table_data = get_table_data(
+            obs_start,
+            obs_end,
+            name,
+            asteroid_table_data,
+            MAX_DISTANCE,
+            MAX_STARS,
+            x,
+            y,
+            x_mean,
+            y_mean,
+            radius,
+        )
     return jsonify(asteroid_table_data)
 
 
