@@ -62,7 +62,7 @@ def separate_data(api_response, name, location):
     match = re.search(r"(?<=\$\$SOE).*?(?=\$\$EOE)", api_response.text, re.DOTALL)
     if match:
         text_data = StringIO(match.group())
-        df = pd.read_csv(text_data, sep='\s+',header=None)
+        df = pd.read_csv(text_data, sep='\\s+',header=None)
         df['datatime'] = df.apply(get_datatime,axis = 1)
         df['coord'] = df.apply(convert_to_coo,axis = 1)
         df['alt'] = df.apply(get_altitude,axis = 1,observing_location = location)
@@ -91,12 +91,12 @@ def get_altitude(row,observing_location):
     altitude_rad = altaz.alt
     altitude_deg = altitude_rad.to(u.deg)
 
-    return altitude_deg
+    return altitude_deg.value
 
 @timeit
 def get_radius(x, y, x_mean, y_mean, radius_factor):
     radius = (np.sqrt((x.iloc[0] - x_mean) ** 2 + (y.iloc[0] - y_mean) ** 2)) * radius_factor
-    logging.info(f"radius = {radius}")
+    logging.info(f"{radius = }")
     return radius
 
 @timeit
@@ -104,7 +104,6 @@ def get_cartesian_positions(filtered_df):
     x = filtered_df['coord'].apply(lambda x: x.ra.deg)
     y = filtered_df['coord'].apply(lambda x: x.dec.deg)
 
-    # Obliczenie średnich wartości
     x_mean = np.mean(x)
     y_mean = np.mean(y)
     return x, y, x_mean, y_mean
@@ -125,7 +124,7 @@ def get_position(start_time, stop_time, name, location):
             "EPHEM_TYPE": "OBSERVER",
             "START_TIME": start_time,
             "STOP_TIME": stop_time,
-            "STEP_SIZE": "1m",
+            "STEP_SIZE": "4m",
             "QUANTITIES": "1",
         },
     )
@@ -235,7 +234,7 @@ def main():
     }
     for name in asteroid_names:
         asteroid_df = get_position(start_time, stop_time, name, location)
-        alt_condition = asteroid_df['alt'].apply(lambda x: x.value > 20 if hasattr(x, 'value') else x > 20)
+        alt_condition = asteroid_df['alt'] > 20
         datatime_condition = (asteroid_df['datatime'] > night_start.datetime) & (asteroid_df['datatime'] < night_end.datetime)
         filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(by='datatime')
         obs_start = filtered_df['datatime'].iloc[0]

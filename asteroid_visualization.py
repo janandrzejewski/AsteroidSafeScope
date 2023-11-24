@@ -48,14 +48,8 @@ def update_output(n_clicks, asteroid_list, date):
         )
         if response.status_code == 200:
             data_dict = response.json()
-
-            # Sprawdź, czy otrzymane dane są niepuste
-            if data_dict:
-                df = pd.DataFrame(data_dict)
-                return df.to_dict("records"), None
-            else:
-                error_message = "Otrzymano pusty słownik."
-                return [], html.Div(error_message, style={"color": "red"})
+            df = pd.DataFrame(data_dict)
+            return df.to_dict("records"), None
         else:
             error_message = f"Błąd HTTP: {response.status_code}"
             return [], html.Div(error_message, style={"color": "red"})
