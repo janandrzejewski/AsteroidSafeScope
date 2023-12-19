@@ -1,12 +1,10 @@
 import configparser
 import logging
-import os
 import re
 import time
 from datetime import datetime, timedelta
 import pandas as pd
 import astropy.units as u
-import matplotlib.pyplot as plt
 import numpy as np
 import requests
 from astroplan import Observer
@@ -15,7 +13,6 @@ from astropy.coordinates import AltAz, EarthLocation, SkyCoord
 from astropy.time import Time
 from astroquery.gaia import Gaia
 from flask import Flask, jsonify, request
-from matplotlib.patches import Circle
 
 from io import StringIO
 
@@ -58,7 +55,7 @@ def read_config():
 
 
 @timeit
-def separate_data(api_response, name, location):
+def separate_data(api_response, location):
     match = re.search(r"(?<=\$\$SOE).*?(?=\$\$EOE)", api_response.text, re.DOTALL)
     if match:
         text_data = StringIO(match.group())
@@ -129,7 +126,7 @@ def get_position(start_time, stop_time, name, location):
         },
     )
     response.raise_for_status()
-    asteroid_pos = separate_data(response, name, location)
+    asteroid_pos = separate_data(response, location)
     return asteroid_pos
 
 
