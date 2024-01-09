@@ -1,12 +1,14 @@
 FROM python:3.9
 
-WORKDIR /astro/AsteroidSafeScope
+WORKDIR /asteroidapp
 
-COPY ./requirements.txt /astro/AsteroidSafeScope/requirements.txt
+COPY . /asteroidapp
 
-RUN pip install --upgrade pip
 RUN pip install -r requirements.txt
-COPY . /astro/AsteroidSafeScope
 
-CMD ["python", "run_scripts.py"]
+
+EXPOSE 3000
+CMD ["python", "asteroid_data_processing.py"]
+CMD ["python", "asteroid_visualisation.py"]
+
 
