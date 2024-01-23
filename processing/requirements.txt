@@ -1,0 +1,8 @@
+astroplan==0.9.1
+astropy
+astroquery==0.4.6
+Flask==3.0.0
+numpy==1.26.2
+packaging==23.2
+pandas==2.1.4
+requests==2.31.0

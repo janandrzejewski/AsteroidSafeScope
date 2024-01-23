@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  dash-plotly-app:
+    build:
+      context: ./visualization
+    ports:
+      - "8050:8050"
+
+  dash-api-app:
+    build:
+      context: ./processing
+    ports:
+      - "5000:5000"
+

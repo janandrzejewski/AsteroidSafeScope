@@ -44,7 +44,7 @@ def update_output(n_clicks, asteroid_list, date):
     if n_clicks:
         data = {"asteroid_list": asteroid_list, "date": date}
         response = requests.post(
-            "http://localhost:5000/asterod_data_processing", json=data
+            "http://dash-api-app:5000/asteroid_data_processing", json=data
         )
         if response.status_code == 200:
             data_dict = response.json()
@@ -56,6 +56,5 @@ def update_output(n_clicks, asteroid_list, date):
     else:
         return [], None
 
-
 if __name__ == "__main__":
-    app.run(debug=True)
+    app.run(host="0.0.0.0", port="8050", debug= True)
