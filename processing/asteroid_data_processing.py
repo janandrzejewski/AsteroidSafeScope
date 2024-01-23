@@ -202,7 +202,7 @@ def get_table_data(
     return asteroid_table_data
 
 
-@app.route("/asterod_data_processing", methods=["POST"])
+@app.route("/asteroid_data_processing", methods=["POST"])
 def main():
     RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG = read_config()
     Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
