@@ -50,8 +50,9 @@ def read_config():
         MAX_DISTANCE = config.getfloat("Parameters", "MAX_DISTANCE")
         QUERY_STARS_LIMIT = config.getfloat("Parameters", "QUERY_STARS_LIMIT")
         MIN_DEG = config.getfloat("Parameters", "MIN_DEG")
+        STEP_SIZE = config.getint("Parameters", "STEP_SIZE")
 
-    return RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG
+    return RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG, STEP_SIZE
 
 
 @timeit
@@ -110,7 +111,7 @@ def get_cartesian_positions(filtered_df):
 
 
 @timeit
-def get_position(start_time, stop_time, name, location):
+def get_position(start_time, stop_time, name, location,STEP_SIZE):
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
     response = requests.get(
         url,
@@ -121,7 +122,7 @@ def get_position(start_time, stop_time, name, location):
             "EPHEM_TYPE": "OBSERVER",
             "START_TIME": start_time,
             "STOP_TIME": stop_time,
-            "STEP_SIZE": "4m",
+            "STEP_SIZE": f'{STEP_SIZE}m',
             "QUANTITIES": "1",
         },
     )
@@ -204,7 +205,7 @@ def get_table_data(
 
 @app.route("/asteroid_data_processing", methods=["POST"])
 def main():
-    RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG = read_config()
+    RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG, STEP_SIZE = read_config()
     Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
     data = request.get_json()
     asteroid_names = data.get("asteroid_list").split(", ")
@@ -230,8 +231,8 @@ def main():
         "Position": [],
     }
     for name in asteroid_names:
-        asteroid_df = get_position(start_time, stop_time, name, location)
-        alt_condition = asteroid_df['alt'] > 20
+        asteroid_df = get_position(start_time, stop_time, name, location, STEP_SIZE)
+        alt_condition = asteroid_df['alt'] > MIN_DEG
         datatime_condition = (asteroid_df['datatime'] > night_start.datetime) & (asteroid_df['datatime'] < night_end.datetime)
         filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(by='datatime')
         obs_start = filtered_df['datatime'].iloc[0]
