@@ -6,3 +6,4 @@ numpy==1.26.2
 packaging==23.2
 pandas==2.1.4
 requests==2.31.0
+gunicorn

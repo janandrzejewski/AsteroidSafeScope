@@ -8,4 +8,4 @@ RUN set -ex && \
 EXPOSE 5000
 
 
-CMD ["python", "asteroid_data_processing.py"]
+CMD ["gunicorn", "-w", "4", "-b", "0.0.0.0:5000", "asteroid_data_processing:app"]
