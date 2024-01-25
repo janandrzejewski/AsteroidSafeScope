@@ -4,15 +4,16 @@ services:
   dash-plotly-app:
     build:
       context: ./visualization
-    ports:
-      - "8050:8050"
-    command: ["gunicorn", "-w", "4", "-b", "0.0.0.0:8050", "asteroid_visualization:server"]
+    restart: always
+ #   volumes:
+#      - "./visualization:/asteroid_data_processing"
 
   dash-api-app:
     build:
       context: ./processing
-    ports:
-      - "5000"
+    restart: always
+  #  volumes:
+   #   - "./processing:/asteroid_data_processing"
   nginx:
       build:
         context: ./nginx
