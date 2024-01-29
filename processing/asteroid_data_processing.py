@@ -211,7 +211,10 @@ def main():
     asteroid_names = data.get("asteroid_list").split(", ")
     obs_date_str = data.get("date")
     obs_date = datetime.strptime(obs_date_str, "%Y-%m-%d")
-    location = EarthLocation(lat=-30 * u.deg, lon=-70 * u.deg, height=1750 * u.m)
+    latitude = data.get("latitude")
+    longitude = data.get("longitude")
+    altitude = data.get("altitude")
+    location = EarthLocation(lat=latitude * u.deg, lon=longitude * u.deg, height=altitude * u.m)
     deepskychile = Observer(location=location, name="deepskychile")
     night_start = deepskychile.twilight_evening_astronomical(
         Time((obs_date + timedelta(days=1)))

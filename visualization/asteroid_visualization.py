@@ -29,6 +29,9 @@ app.layout = html.Div(
         ),
         html.Button(id="submit-button-state", n_clicks=0, children="Submit"),
         html.Div(id="output-state"),
+        dcc.Input(id="longitude", type="text", placeholder="Lon:", value="", persistence=True),
+        dcc.Input(id="latitude", type="text", placeholder="Lat:", value="", persistence=True),
+        dcc.Input(id="altitude", type="text", placeholder="Alt:", value="", persistence=True),
         dash_table.DataTable(
             [], [{"name": i, "id": i} for i in asteroid_table_headers], id="tbl"
         ),  # Initialize with an empty table
@@ -41,10 +44,19 @@ app.layout = html.Div(
     Input("submit-button-state", "n_clicks"),
     State("asteroid_list", "value"),
     State("date-picker-single", "date"),
+    State("longitude", "value"),
+    State("latitude", "value"),
+    State("altitude", "value"),
 )
-def update_output(n_clicks, asteroid_list, date):
+def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
     if n_clicks:
-        data = {"asteroid_list": asteroid_list, "date": date}
+        data = {
+            "asteroid_list": asteroid_list,
+            "date": date,
+            "longitude": float(longitude),
+            "latitude": float(latitude),
+            "altitude": float(altitude)
+        }
         response = requests.post(
             "http://dash-api-app:5000/asteroid_data_processing", json=data
         )
@@ -59,4 +71,4 @@ def update_output(n_clicks, asteroid_list, date):
         return [], None
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="8050", debug= True)
+    app.run(host="0.0.0.0", port="8050", debug=True)
