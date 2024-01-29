@@ -5,21 +5,19 @@ services:
     build:
       context: ./visualization
     restart: always
- #   volumes:
-#      - "./visualization:/asteroid_data_processing"
+    image: your-dockerid/yourimage
 
   dash-api-app:
     build:
       context: ./processing
     restart: always
-  #  volumes:
-   #   - "./processing:/asteroid_data_processing"
+
   nginx:
-      build:
-        context: ./nginx
-      ports:
-        - "80:80"
-      depends_on:
-        - dash-plotly-app
-        - dash-api-app
-      command: ["nginx", "-g", "daemon off;"]
+    build:
+      context: ./nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - dash-plotly-app
+      - dash-api-app
+    command: ["nginx", "-g", "daemon off;"]

@@ -23,7 +23,7 @@ asteroid_table_headers = [
 
 app.layout = html.Div(
     [
-        dcc.Input(id="asteroid_list", type="text", value="NAME OR ID"),
+        dcc.Input(id="asteroid_list", type="text", placeholder="NAME OR ID", value=""),
         dcc.DatePickerSingle(
             id="date-picker-single", date=datetime.today().strftime("%Y-%m-%d")
         ),
