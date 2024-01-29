@@ -60,58 +60,60 @@ def separate_data(api_response, location):
     match = re.search(r"(?<=\$\$SOE).*?(?=\$\$EOE)", api_response.text, re.DOTALL)
     if match:
         text_data = StringIO(match.group())
-        df = pd.read_csv(text_data, sep='\\s+',header=None)
-        df['datatime'] = df.apply(get_datatime,axis = 1)
-        df['coord'] = df.apply(convert_to_coo,axis = 1)
-        df['alt'] = df.apply(get_altitude,axis = 1,observing_location = location)
+        df = pd.read_csv(text_data, sep="\\s+", header=None)
+        df["datatime"] = df.apply(get_datatime, axis=1)
+        df["coord"] = df.apply(convert_to_coo, axis=1)
+        df["alt"] = df.apply(get_altitude, axis=1, observing_location=location)
         df = df.drop(df.columns[:8], axis=1)
     return df
+
 
 def convert_to_coo(row):
     ra = f"{row[2]}h{row[3]}m{row[4]}s"
     dec = f"{row[5]}d{row[6]}m{row[7]}s"
-    coord = SkyCoord(ra,dec, unit=(u.hourangle, u.deg))
+    coord = SkyCoord(ra, dec, unit=(u.hourangle, u.deg))
     return coord
 
 
-
 def get_datatime(row):
-  date_time = f'{row[0]} {row[1]}'
-  datetime_obj = datetime.strptime(date_time, "%Y-%b-%d %H:%M")
+    date_time = f"{row[0]} {row[1]}"
+    datetime_obj = datetime.strptime(date_time, "%Y-%b-%d %H:%M")
 
-  return datetime_obj
+    return datetime_obj
 
-def get_altitude(row,observing_location):
-    coord = row['coord']
+
+def get_altitude(row, observing_location):
+    coord = row["coord"]
     altaz = coord.transform_to(
-        AltAz(obstime=row['datatime'], location=observing_location)
+        AltAz(obstime=row["datatime"], location=observing_location)
     )
     altitude_rad = altaz.alt
     altitude_deg = altitude_rad.to(u.deg)
 
     return altitude_deg.value
 
+
 @timeit
 def get_radius(x, y, x_mean, y_mean, radius_factor):
-    radius = (np.sqrt((x.iloc[0] - x_mean) ** 2 + (y.iloc[0] - y_mean) ** 2)) * radius_factor
+    radius = (
+        np.sqrt((x.iloc[0] - x_mean) ** 2 + (y.iloc[0] - y_mean) ** 2)
+    ) * radius_factor
     logging.info(f"{radius = }")
     return radius
 
+
 @timeit
 def get_cartesian_positions(filtered_df):
-    x = filtered_df['coord'].apply(lambda x: x.ra.deg)
-    y = filtered_df['coord'].apply(lambda x: x.dec.deg)
+    x = filtered_df["coord"].apply(lambda x: x.ra.deg)
+    y = filtered_df["coord"].apply(lambda x: x.dec.deg)
 
     x_mean = np.mean(x)
     y_mean = np.mean(y)
     return x, y, x_mean, y_mean
 
 
-
-
-
 @timeit
-def get_position(start_time, stop_time, name, location,STEP_SIZE):
+def get_position(start_time, stop_time, name, location, STEP_SIZE):
     url = "https://ssd.jpl.nasa.gov/api/horizons.api"
     response = requests.get(
         url,
@@ -122,7 +124,7 @@ def get_position(start_time, stop_time, name, location,STEP_SIZE):
             "EPHEM_TYPE": "OBSERVER",
             "START_TIME": start_time,
             "STOP_TIME": stop_time,
-            "STEP_SIZE": f'{STEP_SIZE}m',
+            "STEP_SIZE": f"{STEP_SIZE}m",
             "QUANTITIES": "1",
         },
     )
@@ -205,7 +207,14 @@ def get_table_data(
 
 @app.route("/asteroid_data_processing", methods=["POST"])
 def main():
-    RADIUS_FACTOR, MAX_STARS, MAX_DISTANCE, QUERY_STARS_LIMIT, MIN_DEG, STEP_SIZE = read_config()
+    (
+        RADIUS_FACTOR,
+        MAX_STARS,
+        MAX_DISTANCE,
+        QUERY_STARS_LIMIT,
+        MIN_DEG,
+        STEP_SIZE,
+    ) = read_config()
     Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
     data = request.get_json()
     asteroid_names = data.get("asteroid_list").split(", ")
@@ -214,7 +223,9 @@ def main():
     latitude = data.get("latitude")
     longitude = data.get("longitude")
     altitude = data.get("altitude")
-    location = EarthLocation(lat=latitude * u.deg, lon=longitude * u.deg, height=altitude * u.m)
+    location = EarthLocation(
+        lat=latitude * u.deg, lon=longitude * u.deg, height=altitude * u.m
+    )
     deepskychile = Observer(location=location, name="deepskychile")
     night_start = deepskychile.twilight_evening_astronomical(
         Time((obs_date + timedelta(days=1)))
@@ -235,11 +246,15 @@ def main():
     }
     for name in asteroid_names:
         asteroid_df = get_position(start_time, stop_time, name, location, STEP_SIZE)
-        alt_condition = asteroid_df['alt'] > MIN_DEG
-        datatime_condition = (asteroid_df['datatime'] > night_start.datetime) & (asteroid_df['datatime'] < night_end.datetime)
-        filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(by='datatime')
-        obs_start = filtered_df['datatime'].iloc[0]
-        obs_end = filtered_df['datatime'].iloc[-1]
+        alt_condition = asteroid_df["alt"] > MIN_DEG
+        datatime_condition = (asteroid_df["datatime"] > night_start.datetime) & (
+            asteroid_df["datatime"] < night_end.datetime
+        )
+        filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(
+            by="datatime"
+        )
+        obs_start = filtered_df["datatime"].iloc[0]
+        obs_end = filtered_df["datatime"].iloc[-1]
         x, y, x_mean, y_mean = get_cartesian_positions(filtered_df)
         radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
         asteroid_table_data = get_table_data(
@@ -259,4 +274,4 @@ def main():
 
 
 if __name__ == "__main__":
-    app.run(host="0.0.0.0", port="5000", debug= True)
+    app.run(host="0.0.0.0", port="5000", debug=True)

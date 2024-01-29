@@ -29,12 +29,32 @@ app.layout = html.Div(
         ),
         html.Button(id="submit-button-state", n_clicks=0, children="Submit"),
         html.Div(id="output-state"),
-        dcc.Input(id="longitude", type="text", placeholder="Lon:", value="", persistence=True),
-        dcc.Input(id="latitude", type="text", placeholder="Lat:", value="", persistence=True),
-        dcc.Input(id="altitude", type="text", placeholder="Alt:", value="", persistence=True),
+        dcc.Input(
+            id="longitude", type="text", placeholder="Lon:", value="", persistence=True
+        ),
+        dcc.Input(
+            id="latitude", type="text", placeholder="Lat:", value="", persistence=True
+        ),
+        dcc.Input(
+            id="altitude", type="text", placeholder="Alt:", value="", persistence=True
+        ),
         dash_table.DataTable(
             [], [{"name": i, "id": i} for i in asteroid_table_headers], id="tbl"
-        ),  # Initialize with an empty table
+        ),
+        html.Div(
+            [
+                html.P(
+                    "This is an open-source project, developed by Jan Andrzejewski."
+                ),
+                html.P("Check out the GitHub repository:"),
+                html.A(
+                    "Link to GitHub Repository",
+                    href="https://github.com/janandrzejewski/AsteroidSafeScope",
+                    target="_blank",
+                ),
+            ],
+            style={"position": "fixed", "bottom": 0, "right": 0, "margin": "10px"},
+        ),
     ]
 )
 
@@ -55,7 +75,7 @@ def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
             "date": date,
             "longitude": float(longitude),
             "latitude": float(latitude),
-            "altitude": float(altitude)
+            "altitude": float(altitude),
         }
         response = requests.post(
             "http://dash-api-app:5000/asteroid_data_processing", json=data
@@ -69,6 +89,7 @@ def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
             return [], html.Div(error_message, style={"color": "red"})
     else:
         return [], None
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port="8050", debug=True)
