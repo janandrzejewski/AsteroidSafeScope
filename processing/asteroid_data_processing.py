@@ -22,7 +22,7 @@ logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-logging.getLogger().setLevel(logging.WARNING)
+#logging.getLogger().setLevel(logging.WARNING)
 
 
 def timeit(func):
@@ -227,10 +227,10 @@ def main():
         lat=latitude * u.deg, lon=longitude * u.deg, height=altitude * u.m
     )
     deepskychile = Observer(location=location, name="deepskychile")
-    night_start = deepskychile.twilight_evening_astronomical(
+    night_start = deepskychile.twilight_evening_nautical(
         Time((obs_date + timedelta(days=1)))
     )
-    night_end = deepskychile.twilight_morning_astronomical(
+    night_end = deepskychile.twilight_morning_nautical(
         Time((obs_date + timedelta(days=1)))
     )  # dziala tylko gdy night_start zaczyna sie juz nastepnego dnia :p
     start_time = f"'{night_start.datetime.strftime('%Y-%m-%d %H:%M')}'"
