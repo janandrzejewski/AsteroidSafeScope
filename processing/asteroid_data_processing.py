@@ -65,6 +65,8 @@ def separate_data(api_response, location):
         df["coord"] = df.apply(convert_to_coo, axis=1)
         df["alt"] = df.apply(get_altitude, axis=1, observing_location=location)
         df = df.drop(df.columns[:8], axis=1)
+    else:
+        df = pd.DataFrame
     return df
 
 
@@ -202,6 +204,7 @@ def get_table_data(
         asteroid_table_data["Position"].append(
             f"{mean_position.ra.to_string(unit='hour', decimal=True)} {mean_position.dec.to_string(decimal=True)}"
         )
+        asteroid_table_data["Status"].append(200)
     return asteroid_table_data
 
 
@@ -215,6 +218,7 @@ def main():
         MIN_DEG,
         STEP_SIZE,
     ) = read_config()
+    status = 200
     Gaia.ROW_LIMIT = int(QUERY_STARS_LIMIT)
     data = request.get_json()
     asteroid_names = data.get("asteroid_list").split(", ")
@@ -236,6 +240,7 @@ def main():
     start_time = f"'{night_start.datetime.strftime('%Y-%m-%d %H:%M')}'"
     stop_time = f"'{night_end.datetime.strftime('%Y-%m-%d %H:%M')}'"
     asteroid_table_data = {
+        "Status": [],
         "Asteroid ID": [],
         "Info": [],
         "Start": [],
@@ -246,30 +251,40 @@ def main():
     }
     for name in asteroid_names:
         asteroid_df = get_position(start_time, stop_time, name, location, STEP_SIZE)
-        alt_condition = asteroid_df["alt"] > MIN_DEG
-        datatime_condition = (asteroid_df["datatime"] > night_start.datetime) & (
-            asteroid_df["datatime"] < night_end.datetime
-        )
-        filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(
-            by="datatime"
-        )
-        obs_start = filtered_df["datatime"].iloc[0]
-        obs_end = filtered_df["datatime"].iloc[-1]
-        x, y, x_mean, y_mean = get_cartesian_positions(filtered_df)
-        radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
-        asteroid_table_data = get_table_data(
-            obs_start,
-            obs_end,
-            name,
-            asteroid_table_data,
-            MAX_DISTANCE,
-            MAX_STARS,
-            x,
-            y,
-            x_mean,
-            y_mean,
-            radius,
-        )
+        if asteroid_df.empty:
+            asteroid_table_data["Status"].append(155)
+            asteroid_table_data["Asteroid ID"].append(name)
+            asteroid_table_data["Info"].append('No ephemeris available for the given object')
+            asteroid_table_data["Start"].append(' ')
+            asteroid_table_data["Stop"].append(' ')
+            asteroid_table_data["Stars qty"].append(' ')
+            asteroid_table_data["Duration"].append(' ')
+            asteroid_table_data["Position"].append(' ')
+        else:
+            alt_condition = asteroid_df["alt"] > MIN_DEG
+            datatime_condition = (asteroid_df["datatime"] > night_start.datetime) & (
+                asteroid_df["datatime"] < night_end.datetime
+            )
+            filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(
+                by="datatime"
+            )
+            obs_start = filtered_df["datatime"].iloc[0]
+            obs_end = filtered_df["datatime"].iloc[-1]
+            x, y, x_mean, y_mean = get_cartesian_positions(filtered_df)
+            radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
+            asteroid_table_data = get_table_data(
+                obs_start,
+                obs_end,
+                name,
+                asteroid_table_data,
+                MAX_DISTANCE,
+                MAX_STARS,
+                x,
+                y,
+                x_mean,
+                y_mean,
+                radius,
+            )
     return jsonify(asteroid_table_data)
 
 
