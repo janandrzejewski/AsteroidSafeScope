@@ -268,23 +268,33 @@ def main():
             filtered_df = asteroid_df[alt_condition & datatime_condition].sort_values(
                 by="datatime"
             )
-            obs_start = filtered_df["datatime"].iloc[0]
-            obs_end = filtered_df["datatime"].iloc[-1]
-            x, y, x_mean, y_mean = get_cartesian_positions(filtered_df)
-            radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
-            asteroid_table_data = get_table_data(
-                obs_start,
-                obs_end,
-                name,
-                asteroid_table_data,
-                MAX_DISTANCE,
-                MAX_STARS,
-                x,
-                y,
-                x_mean,
-                y_mean,
-                radius,
-            )
+            if filtered_df.empty:
+                asteroid_table_data["Status"].append(137)
+                asteroid_table_data["Asteroid ID"].append(name)
+                asteroid_table_data["Info"].append('No ephemeris available for the given object in a given time frame')
+                asteroid_table_data["Start"].append(' ')
+                asteroid_table_data["Stop"].append(' ')
+                asteroid_table_data["Stars qty"].append(' ')
+                asteroid_table_data["Duration"].append(' ')
+                asteroid_table_data["Position"].append(' ')
+            else:
+                obs_start = filtered_df["datatime"].iloc[0]
+                obs_end = filtered_df["datatime"].iloc[-1]
+                x, y, x_mean, y_mean = get_cartesian_positions(filtered_df)
+                radius = get_radius(x, y, x_mean, y_mean, RADIUS_FACTOR)
+                asteroid_table_data = get_table_data(
+                    obs_start,
+                    obs_end,
+                    name,
+                    asteroid_table_data,
+                    MAX_DISTANCE,
+                    MAX_STARS,
+                    x,
+                    y,
+                    x_mean,
+                    y_mean,
+                    radius,
+                )
     return jsonify(asteroid_table_data)
 
 
