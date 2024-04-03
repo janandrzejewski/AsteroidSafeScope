@@ -71,6 +71,14 @@ app.layout = html.Div(
 )
 def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
     if n_clicks:
+        if not asteroid_list or asteroid_list.strip() == '':
+            error_message = "Please enter a list of asteroid names separated by commas."
+            return [], html.Div(error_message, style={"color": "orange"})
+        
+        if not longitude or not latitude or not altitude:
+            error_message = "Please enter longitude, latitude, and altitude."
+            return [], html.Div(error_message, style={"color": "orange"})
+
         data = {
             "asteroid_list": asteroid_list,
             "date": date,
@@ -78,9 +86,7 @@ def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
             "latitude": float(latitude),
             "altitude": float(altitude),
         }
-        if asteroid_list is None or asteroid_list == '':
-            error_message = "Please enter a list of asteroid names separated by commas."
-            return [], html.Div(error_message, style={"color": "orange"})
+        
         response = requests.post(
             "http://dash-api-app:5000/asteroid_data_processing", json=data
         )
@@ -89,7 +95,7 @@ def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
             df = pd.DataFrame(data_dict)
             return df.to_dict("records"), None
         else:
-            error_message = f"Błąd HTTP: {response.status_code}"
+            error_message = f"HTTP Error: {response.status_code}"
             return [], html.Div(error_message, style={"color": "red"})
     else:
         return [], None
