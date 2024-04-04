@@ -2,41 +2,38 @@
 Protecting Observations from Stellar Interference 
 
 AsteroidSafeScope is a tool designed for swift verification during asteroid observation planning. It aids in quickly checking if stars are present along the path of an asteroid, facilitating efficient observation planning.
-![image](https://github.com/janandrzejewski/AsteroidSafeScope/assets/67760124/d9f0de39-cc3e-4d62-aa2c-8f6242eb404d)
+
+![example usage](image-2.png)
 
 ## Requirements
-- Python 3.8+
+- Python 3.10+
+- Docker
 
 ## Usage
 
 To utilize AsteroidSafeScope:
+- Enter the longitude, latitude, and altitude of the observation location.
 - Provide the asteroid names or their IDs, separated by commas, for analysis.
 - Select the observation date using the calendar feature.
 - Confirm the selection to initiate the verification process.
 
+![config program](image.png)
 ## Installation (Development)
 
 ### For development usage:
 
-Create a new Conda environment:
+Download code:
 ```commandline
-conda create --name asteroid_env --file requirements.txt
+git clone https://github.com/janandrzejewski/AsteroidSafeScope
 ```
-Activate the Conda environment:
-```commandline
-conda activate asteroid_env
-```
-Run the programs:
+install docker and compose plugin
+- https://docs.docker.com/engine/install/
+- https://docs.docker.com/compose/install/linux/#install-the-plugin-manually
 
-- Execute the asteroid data processing script:
+Run the server:
 
 ```commandline
-python asteroid_data_processing.py
-```
-- Launch the asteroid visualization script:
-
-```commandline
-python asteroid_visualization.py
+sudo docker compose up -d --build
 ```
 
 ## Development
