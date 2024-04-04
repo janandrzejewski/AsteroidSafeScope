@@ -42,7 +42,13 @@ app.layout = html.Div(
             [],
             columns=[{"name": i, "id": i} for i in asteroid_table_headers[1:]],
             id="tbl",
-            style_cell={'textAlign': 'center'},  
+            style_cell={'textAlign': 'center'},            
+            style_data_conditional=[
+                {
+                    'if': {'column_id': 'Info'},
+                    'textAlign': 'left'
+                }
+            ]  
         ),
         html.Div(
             [
