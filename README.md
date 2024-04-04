@@ -3,7 +3,7 @@ Protecting Observations from Stellar Interference
 
 AsteroidSafeScope is a tool designed for swift verification during asteroid observation planning. It aids in quickly checking if stars are present along the path of an asteroid, facilitating efficient observation planning.
 
-![example usage](image-2.png)
+![example usage](images/usage_example.png)
 
 ## Requirements
 - Python 3.10+
@@ -17,7 +17,7 @@ To utilize AsteroidSafeScope:
 - Select the observation date using the calendar feature.
 - Confirm the selection to initiate the verification process.
 
-![config program](image.png)
+![config program](images/input.png)
 ## Installation (Development)
 
 ### For development usage:
