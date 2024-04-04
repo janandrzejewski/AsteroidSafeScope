@@ -30,10 +30,10 @@ app.layout = html.Div(
         html.Button(id="submit-button-state", n_clicks=0, children="Submit"),
         html.Div(id="output-state"),
         dcc.Input(
-            id="longitude", type="text", placeholder="Lon:", value="", persistence=True
+            id="longitude", type="text", placeholder="Lon(°E):", value="", persistence=True
         ),
         dcc.Input(
-            id="latitude", type="text", placeholder="Lat:", value="", persistence=True
+            id="latitude", type="text", placeholder="Lat(°N):", value="", persistence=True
         ),
         dcc.Input(
             id="altitude", type="text", placeholder="Alt:", value="", persistence=True
