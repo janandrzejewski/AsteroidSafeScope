@@ -36,7 +36,7 @@ app.layout = html.Div(
             id="latitude", type="text", placeholder="Lat(°N):", value="", persistence=True
         ),
         dcc.Input(
-            id="altitude", type="text", placeholder="Alt:", value="", persistence=True
+            id="altitude", type="text", placeholder="Alt(m):", value="", persistence=True
         ),
         dash_table.DataTable(
             [],
