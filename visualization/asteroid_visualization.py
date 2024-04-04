@@ -40,7 +40,10 @@ app.layout = html.Div(
             id="altitude", type="text", placeholder="Alt:", value="", persistence=True
         ),
         dash_table.DataTable(
-            [], [{"name": i, "id": i} for i in asteroid_table_headers[1:]], id="tbl"
+            [],
+            columns=[{"name": i, "id": i} for i in asteroid_table_headers[1:]],
+            id="tbl",
+            style_cell={'textAlign': 'center'},  
         ),
         html.Div(
             [

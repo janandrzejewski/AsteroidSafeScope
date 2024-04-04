@@ -194,9 +194,14 @@ def get_table_data(
         mean_position = SkyCoord(x_mean, y_mean, unit=(u.deg, u.deg))
         duration = end - start
         asteroid_table_data["Asteroid ID"].append(name)
-        asteroid_table_data["Info"].append(
-            f"Istnieje {len(stars_nearby)} gwiazd blisko trasy \n MAG:{mag_str}"
-        )
+        if len(stars_nearby) == 0:
+            asteroid_table_data["Info"].append(
+            f"No stars near the trajectory"
+            )
+        else:
+            asteroid_table_data["Info"].append(
+                f"There are {len(stars_nearby)} stars near the trajectory \n MAG:{round(mag_str,2)}"
+            )
         asteroid_table_data["Start"].append(str(start))
         asteroid_table_data["Stop"].append(str(end))
         asteroid_table_data["Stars qty"].append(stars_count)
