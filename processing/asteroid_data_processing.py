@@ -3,9 +3,11 @@ import logging
 import re
 import time
 from datetime import datetime, timedelta
-import pandas as pd
+from io import StringIO
+
 import astropy.units as u
 import numpy as np
+import pandas as pd
 import requests
 from astroplan import Observer
 from astropy import units as u
@@ -14,15 +16,13 @@ from astropy.time import Time
 from astroquery.gaia import Gaia
 from flask import Flask, jsonify, request
 
-from io import StringIO
-
 app = Flask(__name__)
 
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-#logging.getLogger().setLevel(logging.WARNING)
+# logging.getLogger().setLevel(logging.WARNING)
 
 
 def timeit(func):
@@ -193,9 +193,7 @@ def get_table_data(
         duration = end - start
         asteroid_table_data["Asteroid ID"].append(name)
         if stars_count == 0:
-            asteroid_table_data["Info"].append(
-            f"No stars near the trajectory"
-            )
+            asteroid_table_data["Info"].append(f"No stars near the trajectory")
         elif stars_count == 1:
             asteroid_table_data["Info"].append(
                 f"There is 1 star near the trajectory \n MAG:{mag_str}"
@@ -261,12 +259,14 @@ def main():
         if asteroid_df.empty:
             asteroid_table_data["Status"].append(155)
             asteroid_table_data["Asteroid ID"].append(name)
-            asteroid_table_data["Info"].append('No ephemeris available for the given object')
-            asteroid_table_data["Start"].append(' ')
-            asteroid_table_data["Stop"].append(' ')
-            asteroid_table_data["Stars qty"].append(' ')
-            asteroid_table_data["Duration"].append(' ')
-            asteroid_table_data["Position"].append(' ')
+            asteroid_table_data["Info"].append(
+                "No ephemeris available for the given object"
+            )
+            asteroid_table_data["Start"].append(" ")
+            asteroid_table_data["Stop"].append(" ")
+            asteroid_table_data["Stars qty"].append(" ")
+            asteroid_table_data["Duration"].append(" ")
+            asteroid_table_data["Position"].append(" ")
         else:
             alt_condition = asteroid_df["alt"] > MIN_DEG
             datatime_condition = (asteroid_df["datatime"] > night_start.datetime) & (
@@ -278,12 +278,14 @@ def main():
             if filtered_df.empty:
                 asteroid_table_data["Status"].append(137)
                 asteroid_table_data["Asteroid ID"].append(name)
-                asteroid_table_data["Info"].append('No ephemeris available for the given object in a given time frame')
-                asteroid_table_data["Start"].append(' ')
-                asteroid_table_data["Stop"].append(' ')
-                asteroid_table_data["Stars qty"].append(' ')
-                asteroid_table_data["Duration"].append(' ')
-                asteroid_table_data["Position"].append(' ')
+                asteroid_table_data["Info"].append(
+                    "No ephemeris available for the given object in a given time frame"
+                )
+                asteroid_table_data["Start"].append(" ")
+                asteroid_table_data["Stop"].append(" ")
+                asteroid_table_data["Stars qty"].append(" ")
+                asteroid_table_data["Duration"].append(" ")
+                asteroid_table_data["Position"].append(" ")
             else:
                 obs_start = filtered_df["datatime"].iloc[0]
                 obs_end = filtered_df["datatime"].iloc[-1]

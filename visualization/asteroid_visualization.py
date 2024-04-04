@@ -30,25 +30,32 @@ app.layout = html.Div(
         html.Button(id="submit-button-state", n_clicks=0, children="Submit"),
         html.Div(id="output-state"),
         dcc.Input(
-            id="longitude", type="text", placeholder="Lon(°E):", value="", persistence=True
+            id="longitude",
+            type="text",
+            placeholder="Lon(°E):",
+            value="",
+            persistence=True,
         ),
         dcc.Input(
-            id="latitude", type="text", placeholder="Lat(°N):", value="", persistence=True
+            id="latitude",
+            type="text",
+            placeholder="Lat(°N):",
+            value="",
+            persistence=True,
         ),
         dcc.Input(
-            id="altitude", type="text", placeholder="Alt(m):", value="", persistence=True
+            id="altitude",
+            type="text",
+            placeholder="Alt(m):",
+            value="",
+            persistence=True,
         ),
         dash_table.DataTable(
             [],
             columns=[{"name": i, "id": i} for i in asteroid_table_headers[1:]],
             id="tbl",
-            style_cell={'textAlign': 'center'},            
-            style_data_conditional=[
-                {
-                    'if': {'column_id': 'Info'},
-                    'textAlign': 'left'
-                }
-            ]  
+            style_cell={"textAlign": "center"},
+            style_data_conditional=[{"if": {"column_id": "Info"}, "textAlign": "left"}],
         ),
         html.Div(
             [
@@ -79,10 +86,10 @@ app.layout = html.Div(
 )
 def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
     if n_clicks:
-        if not asteroid_list or asteroid_list.strip() == '':
+        if not asteroid_list or asteroid_list.strip() == "":
             error_message = "Please enter a list of asteroid names separated by commas."
             return [], html.Div(error_message, style={"color": "orange"})
-        
+
         if not longitude or not latitude or not altitude:
             error_message = "Please enter longitude, latitude, and altitude."
             return [], html.Div(error_message, style={"color": "orange"})
@@ -94,7 +101,7 @@ def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
             "latitude": float(latitude),
             "altitude": float(altitude),
         }
-        
+
         response = requests.post(
             "http://dash-api-app:5000/asteroid_data_processing", json=data
         )
@@ -107,6 +114,7 @@ def update_output(n_clicks, asteroid_list, date, longitude, latitude, altitude):
             return [], html.Div(error_message, style={"color": "red"})
     else:
         return [], None
+
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port="8050", debug=True)
