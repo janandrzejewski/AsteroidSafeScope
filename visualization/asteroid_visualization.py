@@ -17,7 +17,6 @@ asteroid_table_headers = [
     "Info",
     "Start",
     "Stop",
-    "Stars qty",
     "Duration",
     "Position",
 ]

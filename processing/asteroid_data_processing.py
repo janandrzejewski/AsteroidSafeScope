@@ -186,9 +186,7 @@ def get_table_data(
     stars_nearby = get_stars(radius, x_mean, y_mean, a, b, MAX_DISTANCE)
     stars_count = len(stars_nearby)
     if len(stars_nearby) < MAX_STARS:
-        mag_values = stars_nearby["phot_g_mean_mag"][
-            :5
-        ]  # Limited to a maximum of 5 mag values
+        mag_values = stars_nearby["phot_g_mean_mag"][:5].round(2)
         mag_str = ", ".join(map(str, mag_values))
 
         mean_position = SkyCoord(x_mean, y_mean, unit=(u.deg, u.deg))
@@ -200,7 +198,7 @@ def get_table_data(
             )
         else:
             asteroid_table_data["Info"].append(
-                f"There are {len(stars_nearby)} stars near the trajectory \n MAG:{round(mag_str,2)}"
+                f"There are {len(stars_nearby)} stars near the trajectory \n MAG:{mag_str}"
             )
         asteroid_table_data["Start"].append(str(start))
         asteroid_table_data["Stop"].append(str(end))
